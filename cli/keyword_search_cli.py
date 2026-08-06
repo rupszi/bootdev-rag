@@ -1,6 +1,6 @@
 import argparse
 import json
-
+import string
 
 
 def main() -> None:
@@ -19,9 +19,14 @@ def main() -> None:
         case "search":
             print(f"Searching for: {args.query}")
             result = []
+            punc_table = str.maketrans("", "", string.punctuation)
+            clean_text = args.query.translate(punc_table).lower()
+            tokenized_query = clean_text.split()
 
             for movie in movies["movies"]:
-                if args.query.lower() in movie["title"].lower():
+                clean_title = movie["title"].translate(punc_table).lower()
+                tokenized_title = clean_title.split()
+                if any(q_token in t_token for q_token in tokenized_query for t_token in tokenized_title):
                     result.append(movie)
 
             for i, movie in enumerate(result[:5], start=1):
