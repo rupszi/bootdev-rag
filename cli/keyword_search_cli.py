@@ -1,7 +1,7 @@
 import argparse
 import json
 import string
-
+from nltk.stem import PorterStemmer
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
@@ -11,6 +11,8 @@ def main() -> None:
     search_parser.add_argument("query", type=str, help="Search query")
 
     args = parser.parse_args()
+
+    stemmer = PorterStemmer()
 
     with open("data/movies.json") as f:
         movies = json.load(f)
