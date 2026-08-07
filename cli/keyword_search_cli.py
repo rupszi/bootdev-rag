@@ -28,10 +28,12 @@ def main() -> None:
             punc_table = str.maketrans("", "", string.punctuation)
             clean_text = args.query.translate(punc_table).lower()
             tokenized_query = [word for word in clean_text.split() if word not in stopwords]
+            tokenized_query = [stemmer.stem(word) for word in tokenized_query]
 
             for movie in movies["movies"]:
                 clean_title = movie["title"].translate(punc_table).lower()
                 tokenized_title = [word for word in clean_title.split() if word not in stopwords]
+                tokenized_title = [stemmer.stem(word) for word in tokenized_title]
                 if any(q_token in t_token for q_token in tokenized_query for t_token in tokenized_title):
                     result.append(movie)
 
