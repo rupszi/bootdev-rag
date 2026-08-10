@@ -20,6 +20,7 @@ class InvertedIndex:
         for token in tokens:
             self.index.setdefault(token, set()).add(doc_id)
 
+
         # Tokenize text.
         # For each token, ensure a set exists in self.index.
         # Add doc_id to that set.
@@ -72,29 +73,19 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # stemmer = PorterStemmer()
-
     with open("data/movies.json") as f:
         movies = json.load(f)
 
-    # with open("data/stopwords.txt") as f:
-    #     stopwords = set(f.read().translate(str.maketrans('', '', string.punctuation)).lower().splitlines())
-        
 
     match args.command:
         case "search":
             print(f"Searching for: {args.query}")
+            tokenized_query = tokenize_text(args.query)
             result = []
-            # punc_table = str.maketrans("", "", string.punctuation)
-            # clean_text = args.query.translate(punc_table).lower()
-            tokenized_query = [word for word in clean_text.split() if word not in stopwords]
-            tokenized_query = [stemmer.stem(word) for word in tokenized_query]
-
+           
             for movie in movies["movies"]:
-                clean_title = movie["title"].translate(punc_table).lower()
-                tokenized_title = [word for word in clean_title.split() if word not in stopwords]
-                tokenized_title = [stemmer.stem(word) for word in tokenized_title]
-                if any(q_token in t_token for q_token in tokenized_query for t_token in tokenized_title):
+                tokenized_title= tokenize_text(movie["title"])
+                if any(q_token in tokenized_title for q_token in tokenized_query):
                     result.append(movie)
 
             for i, movie in enumerate(result[:5], start=1):
