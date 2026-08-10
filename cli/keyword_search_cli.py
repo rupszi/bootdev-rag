@@ -17,19 +17,20 @@ class InvertedIndex:
 
     def __add_document(self, doc_id, text):
         tokens = tokenize_text(text)
-        
-        
+        for token in tokens:
+            self.index.setdefault(token, set()).add(doc_id)
+
         # Tokenize text.
         # For each token, ensure a set exists in self.index.
         # Add doc_id to that set.
         # Which dictionary method creates a default value when a key is missing?
 
-    def get_documents(self, term):
+    # def get_documents(self, term):
 
         # Retrieve the term’s set, using an empty set when absent.
         # Return its IDs sorted in ascending order.
 
-    def build(load_movies: list):
+    # def build(load_movies: list):
 
 
         # Remember every instance method needs self.
@@ -40,13 +41,13 @@ class InvertedIndex:
         # Combine its title and description.
         # Pass its ID and combined text to __add_document.
 
-    def save():
+    # def save():
 
         # Create the cache directory.
         # Open each destination in binary-write mode.
         # Serialize each dictionary with pickle.dump.
 
-    def build_command():
+    # def build_command():
 
 
 
