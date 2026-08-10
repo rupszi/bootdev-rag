@@ -26,7 +26,9 @@ class InvertedIndex:
         # Add doc_id to that set.
         # Which dictionary method creates a default value when a key is missing?
 
-    # def get_documents(self, term):
+    def get_documents(self, term) -> List[int]:
+         return sorted(self.index.get(term, set()))
+         
 
         # Retrieve the term’s set, using an empty set when absent.
         # Return its IDs sorted in ascending order.
@@ -84,7 +86,7 @@ def main() -> None:
             result = []
            
             for movie in movies["movies"]:
-                tokenized_title= tokenize_text(movie["title"])
+                tokenized_title = tokenize_text(movie["title"])
                 if any(q_token in tokenized_title for q_token in tokenized_query):
                     result.append(movie)
 
