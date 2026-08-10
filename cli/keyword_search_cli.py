@@ -6,7 +6,13 @@ import string
 # from tkinter.filedialog import Open
 from nltk.stem import PorterStemmer
 from typing import List
+import pickle
+import os
 
+def load_movies() -> List[dict]:
+    with open("data/movies.json") as f:
+        data = json.load(f)
+    return data["movies"]
 
 class InvertedIndex:
     def __init__(self) -> None:
@@ -20,37 +26,33 @@ class InvertedIndex:
         for token in tokens:
             self.index.setdefault(token, set()).add(doc_id)
 
-
-        # Tokenize text.
-        # For each token, ensure a set exists in self.index.
-        # Add doc_id to that set.
-        # Which dictionary method creates a default value when a key is missing?
-
     def get_documents(self, term) -> List[int]:
          return sorted(self.index.get(term, set()))
          
+    def build(self):
+            movies = load_movies()
+            for m in movies:
+                doc_id = m["id"]
+                self.docmap[doc_id] = m
+                text = f"{m['title']} {m['description']}"
+                self.__add_document(doc_id, text)
+             
+    def save(self) -> None:
 
-        # Retrieve the term’s set, using an empty set when absent.
-        # Return its IDs sorted in ascending order.
+        os.makedirs("cache", exist_ok=True)
+        with open("cache/index.pkl", "wb") as f:
+            pickle.dump(self.index, f)
+        with open("cache/docmap.pkl", "wb") as f:
+            pickle.dump(self.docmap, f)
 
-    # def build(load_movies: list):
-
-
-        # Remember every instance method needs self.
-        # The lesson says load_movies() is called inside this method, not passed as a parameter.
-        # For each movie:
-
-        # Store the full movie in docmap under its ID.
-        # Combine its title and description.
-        # Pass its ID and combined text to __add_document.
-
-    # def save():
-
-        # Create the cache directory.
-        # Open each destination in binary-write mode.
-        # Serialize each dictionary with pickle.dump.
-
-    # def build_command():
+def build_command():    
+    idx = InvertedIndex()
+    idx.build()
+    idx.save()
+    docs = idx.get_documents("merida")
+    if docs:
+        print(f"First document for token 'merida' = {docs[0]}")
+    
 
 
 
@@ -69,14 +71,16 @@ def tokenize_text(text: str) -> List[str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    subparsers.add_parser("build", help="Build and save the inverted index")
 
     search_parser = subparsers.add_parser("search", help="Search movies using keywords")
     search_parser.add_argument("query", type=str, help="Search query")
 
     args = parser.parse_args()
 
-    with open("data/movies.json") as f:
-        movies = json.load(f)
+    # with open("data/movies.json") as f:
+    #     movies = json.load(f)
+    movies = load_movies()
 
 
     match args.command:
@@ -85,7 +89,7 @@ def main() -> None:
             tokenized_query = tokenize_text(args.query)
             result = []
            
-            for movie in movies["movies"]:
+            for movie in movies:
                 tokenized_title = tokenize_text(movie["title"])
                 if any(q_token in tokenized_title for q_token in tokenized_query):
                     result.append(movie)
@@ -93,6 +97,9 @@ def main() -> None:
             for i, movie in enumerate(result[:5], start=1):
                     print(f"{i}. {movie['title']}")
 
+        case "build":
+              build_command()
+              
         case _:
             parser.print_help()
 
