@@ -1,9 +1,6 @@
 import argparse
-# from ast import For, Pass, Return, Store
 import json
-# from operator import index
 import string
-# from tkinter.filedialog import Open
 from nltk.stem import PorterStemmer
 from typing import List
 import pickle
@@ -18,8 +15,6 @@ class InvertedIndex:
     def __init__(self) -> None:
         self.index: dict[str, set[int]] = {}
         self.docmap: dict[str, dict] = {}
-
-
 
     def __add_document(self, doc_id, text):
         tokens = tokenize_text(text)
@@ -53,11 +48,6 @@ def build_command():
     if docs:
         print(f"First document for token 'merida' = {docs[0]}")
     
-
-
-
-
-
 def tokenize_text(text: str) -> List[str]:
     stemmer = PorterStemmer()
     with open("data/stopwords.txt") as f:
@@ -65,8 +55,6 @@ def tokenize_text(text: str) -> List[str]:
     punc_table = str.maketrans("", "", string.punctuation)
     clean_text = text.translate(punc_table).lower()
     return [stemmer.stem(w) for w in clean_text.split() if w not in stopwords]
-
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
@@ -77,9 +65,6 @@ def main() -> None:
     search_parser.add_argument("query", type=str, help="Search query")
 
     args = parser.parse_args()
-
-    # with open("data/movies.json") as f:
-    #     movies = json.load(f)
     movies = load_movies()
 
 
@@ -99,7 +84,7 @@ def main() -> None:
 
         case "build":
               build_command()
-              
+
         case _:
             parser.print_help()
 
