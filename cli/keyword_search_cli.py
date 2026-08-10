@@ -1,21 +1,21 @@
 import argparse
-from ast import For, Pass, Return, Store
+# from ast import For, Pass, Return, Store
 import json
-from operator import index
+# from operator import index
 import string
-from tkinter.filedialog import Open
+# from tkinter.filedialog import Open
 from nltk.stem import PorterStemmer
 
 
 class InvertedIndex:
-    def __init__(self, index: dict, docmap: dict) -> None:
-        self.index = None
-        self.docmap = None
+    def __init__(self) -> None:
+        self.index: dict[str, set[int]] = {}
+        self.docmap: dict[str, dict] = {}
 
 
 
     def __add_document(self, doc_id, text):
-        pass
+        tokens = tokenize_text(text)
         
         
         # Tokenize text.
@@ -51,6 +51,14 @@ class InvertedIndex:
 
 
 
+def tokenize_text(text: str) -> List[str]:
+    stemmer = PorterStemmer()
+    with open("data/stopwords.txt") as f:
+            stopwords = set(f.read().translate(str.maketrans('', '', string.punctuation)).lower().splitlines())
+    punc_table = str.maketrans("", "", string.punctuation)
+    clean_text = args.query.translate(punc_table).lower()
+    return [stemmer.stem(w) for w in clean.split() if w not in stopwords]
+
 
 
 
@@ -66,21 +74,21 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    stemmer = PorterStemmer()
+    # stemmer = PorterStemmer()
 
     with open("data/movies.json") as f:
         movies = json.load(f)
 
-    with open("data/stopwords.txt") as f:
-        stopwords = set(f.read().translate(str.maketrans('', '', string.punctuation)).lower().splitlines())
+    # with open("data/stopwords.txt") as f:
+    #     stopwords = set(f.read().translate(str.maketrans('', '', string.punctuation)).lower().splitlines())
         
 
     match args.command:
         case "search":
             print(f"Searching for: {args.query}")
             result = []
-            punc_table = str.maketrans("", "", string.punctuation)
-            clean_text = args.query.translate(punc_table).lower()
+            # punc_table = str.maketrans("", "", string.punctuation)
+            # clean_text = args.query.translate(punc_table).lower()
             tokenized_query = [word for word in clean_text.split() if word not in stopwords]
             tokenized_query = [stemmer.stem(word) for word in tokenized_query]
 
