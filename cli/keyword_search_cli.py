@@ -5,6 +5,7 @@ import json
 import string
 # from tkinter.filedialog import Open
 from nltk.stem import PorterStemmer
+from typing import List
 
 
 class InvertedIndex:
@@ -56,13 +57,9 @@ def tokenize_text(text: str) -> List[str]:
     with open("data/stopwords.txt") as f:
             stopwords = set(f.read().translate(str.maketrans('', '', string.punctuation)).lower().splitlines())
     punc_table = str.maketrans("", "", string.punctuation)
-    clean_text = args.query.translate(punc_table).lower()
-    return [stemmer.stem(w) for w in clean.split() if w not in stopwords]
+    clean_text = text.translate(punc_table).lower()
+    return [stemmer.stem(w) for w in clean_text.split() if w not in stopwords]
 
-
-
-
-main ()
 
 
 def main() -> None:
