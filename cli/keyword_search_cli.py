@@ -1,7 +1,61 @@
 import argparse
+from ast import For, Pass, Return, Store
 import json
+from operator import index
 import string
+from tkinter.filedialog import Open
 from nltk.stem import PorterStemmer
+
+
+class InvertedIndex:
+    def __init__(self, index: dict, docmap: dict) -> None:
+        self.index = None
+        self.docmap = None
+
+
+
+    def __add_document(self, doc_id, text):
+        pass
+        
+        
+        # Tokenize text.
+        # For each token, ensure a set exists in self.index.
+        # Add doc_id to that set.
+        # Which dictionary method creates a default value when a key is missing?
+
+    def get_documents(self, term):
+
+        # Retrieve the term’s set, using an empty set when absent.
+        # Return its IDs sorted in ascending order.
+
+    def build(load_movies: list):
+
+
+        # Remember every instance method needs self.
+        # The lesson says load_movies() is called inside this method, not passed as a parameter.
+        # For each movie:
+
+        # Store the full movie in docmap under its ID.
+        # Combine its title and description.
+        # Pass its ID and combined text to __add_document.
+
+    def save():
+
+        # Create the cache directory.
+        # Open each destination in binary-write mode.
+        # Serialize each dictionary with pickle.dump.
+
+    def build_command():
+
+
+
+
+
+
+
+
+main ()
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
