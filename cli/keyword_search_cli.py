@@ -1,93 +1,246 @@
+# Import argparse to handle Command Line Interface (CLI) arguments and subcommands
 import argparse
+# Import json to parse raw movie data stored in JSON format
 import json
-import string
-from nltk.stem import PorterStemmer
-from typing import List
-import pickle
+# Import os to check/create cache directories on disk
 import os
+# Import pickle to serialize/deserialize Python dictionary state to binary disk files
+import pickle
+# Import string for built-in collections of ASCII punctuation characters
+import string
+# Import type hints to enforce clearer function signatures and contract boundaries
+from typing import List
+# Import PorterStemmer to reduce words to their stem/root form (e.g., 'running' -> 'run')
+from nltk.stem import PorterStemmer
+
 
 def load_movies() -> List[dict]:
+    """
+    Reads movie dataset from disk.
+    
+    Why it exists: Serves as the raw data source during the build phase.
+    How it works: Opens data/movies.json, parses JSON structure, and returns the 'movies' list.
+    """
+    # Open the raw movies JSON file in read mode using a context manager
     with open("data/movies.json") as f:
+        # Load and parse raw JSON into a Python dictionary structure
         data = json.load(f)
+    # Extract and return the array of movie objects stored under the 'movies' key
     return data["movies"]
 
-class InvertedIndex:
-    def __init__(self) -> None:
-        self.index: dict[str, set[int]] = {}
-        self.docmap: dict[str, dict] = {}
 
-    def __add_document(self, doc_id, text):
-        tokens = tokenize_text(text)
-        for token in tokens:
-            self.index.setdefault(token, set()).add(doc_id)
-
-    def get_documents(self, term) -> List[int]:
-         return sorted(self.index.get(term, set()))
-         
-    def build(self):
-            movies = load_movies()
-            for m in movies:
-                doc_id = m["id"]
-                self.docmap[doc_id] = m
-                text = f"{m['title']} {m['description']}"
-                self.__add_document(doc_id, text)
-             
-    def save(self) -> None:
-
-        os.makedirs("cache", exist_ok=True)
-        with open("cache/index.pkl", "wb") as f:
-            pickle.dump(self.index, f)
-        with open("cache/docmap.pkl", "wb") as f:
-            pickle.dump(self.docmap, f)
-
-def build_command():    
-    idx = InvertedIndex()
-    idx.build()
-    idx.save()
-    docs = idx.get_documents("merida")
-    if docs:
-        print(f"First document for token 'merida' = {docs[0]}")
-    
 def tokenize_text(text: str) -> List[str]:
+    """
+    Normalizes and splits raw text into searchable stemmed tokens.
+    
+    Why it exists: Standardizes both indexed documents and search queries so term matches succeed.
+    How it works: Removes punctuation, lowercases, drops stopwords, and stems remaining terms.
+    """
+    # Instantiate the PorterStemmer for algorithmic word suffix stripping
     stemmer = PorterStemmer()
+
+    # Open stopwords file to load noise words (e.g., 'the', 'is', 'and')
     with open("data/stopwords.txt") as f:
-            stopwords = set(f.read().translate(str.maketrans('', '', string.punctuation)).lower().splitlines())
+        # Load stopwords, remove punctuation, normalize to lowercase, and store as a set for O(1) lookup
+        stopwords = set(
+            f.read()
+            .translate(str.maketrans("", "", string.punctuation))
+            .lower()
+            .splitlines()
+        )
+
+    # Construct a translation table mapping all punctuation characters to None
     punc_table = str.maketrans("", "", string.punctuation)
+    
+    # Apply punctuation removal and convert input string to lowercase
     clean_text = text.translate(punc_table).lower()
+
+    # Split cleaned text into words, filter out stopwords, stem each word, and return the token list
     return [stemmer.stem(w) for w in clean_text.split() if w not in stopwords]
 
+
+class InvertedIndex:
+    """
+    Core data structure managing term-to-document mappings and metadata lookups.
+    
+    Attributes:
+        index: Map of stemmed token strings to sets of document integer IDs.
+        docmap: Map of document integer IDs to complete movie dictionaries.
+    """
+    def __init__(self) -> None:
+        # Initialize empty dictionary mapping tokens (str) -> set of doc IDs (set[int])
+        self.index: dict[str, set[int]] = {}
+        # Initialize empty dictionary mapping doc ID (int) -> full movie dict (dict)
+        self.docmap: dict[str, dict] = {}
+
+    def __add_document(self, doc_id: int, text: str) -> None:
+        """
+        Private helper to tokenize document text and add its ID to the inverted index.
+        
+        Why it exists: Populates the term -> document ID map.
+        How it works: Tokenizes input text, then inserts doc_id into each token's set inside self.index.
+        """
+        # Tokenize incoming document text (title + description)
+        tokens = tokenize_text(text)
+        # Iterate over each stemmed token generated from the text
+        for token in tokens:
+            # Ensure the token key exists in self.index (defaulting to empty set) and add doc_id to it
+            self.index.setdefault(token, set()).add(doc_id)
+
+    def get_documents(self, term: str) -> List[int]:
+        """
+        Retrieves sorted document IDs matching a given stemmed term.
+        
+        Why it exists: Provides fast O(1) lookup of document IDs for search terms.
+        How it works: Fetches the token's set from self.index (or empty set if missing) and returns it sorted.
+        """
+        # Retrieve term's document ID set from index (default empty set if missing) and return as sorted list
+        return sorted(self.index.get(term, set()))
+
+    def build(self) -> None:
+        """
+        Executes complete index construction from raw movie data.
+        
+        Why it exists: Precomputes the index structures before saving to disk.
+        How it works: Loads movies, maps IDs to objects in docmap, combines text, and indexes tokens.
+        """
+        # Load raw movie list from disk
+        movies = load_movies()
+        # Iterate over each movie object in dataset
+        for m in movies:
+            # Extract document ID from movie record
+            doc_id = m["id"]
+            # Store complete movie object in docmap under its document ID
+            self.docmap[doc_id] = m
+            # Concatenate title and description to construct full searchable text corpus
+            text = f"{m['title']} {m['description']}"
+            # Pass document ID and text corpus to internal indexer
+            self.__add_document(doc_id, text)
+
+    def save(self) -> None:
+        """
+        Serializes index structures to disk via pickle.
+        
+        Why it exists: Persists index state so future search CLI runs skip parsing raw JSON.
+        How it works: Ensures cache directory exists, then binary dumps self.index and self.docmap.
+        """
+        # Create 'cache' directory if it doesn't already exist on disk
+        os.makedirs("cache", exist_ok=True)
+        # Open binary write file handle for index serialization
+        with open("cache/index.pkl", "wb") as f:
+            # Pickle dump self.index state to binary file
+            pickle.dump(self.index, f)
+        # Open binary write file handle for docmap serialization
+        with open("cache/docmap.pkl", "wb") as f:
+            # Pickle dump self.docmap state to binary file
+            pickle.dump(self.docmap, f)
+
+    def load(self) -> None:
+        """
+        Deserializes index structures from disk via pickle.
+        
+        Why it exists: Reconstitutes in-memory index structures rapidly during search phase.
+        How it works: Opens cached .pkl files and unpickles data back into self.index and self.docmap.
+        """
+        # Open binary read file handle for cached index
+        with open("cache/index.pkl", "rb") as f:
+            # Unpickle binary data and restore to self.index attribute
+            self.index = pickle.load(f)
+        # Open binary read file handle for cached docmap
+        with open("cache/docmap.pkl", "rb") as f:
+            # Unpickle binary data and restore to self.docmap attribute
+            self.docmap = pickle.load(f)
+
+
+def build_command() -> None:
+    """
+    Handler function for CLI 'build' subcommand.
+    
+    Why it exists: Orchestrates the build workflow.
+    How it works: Instantiates InvertedIndex, builds structures in memory, and persists them to cache.
+    """
+    # Instantiate new InvertedIndex instance
+    idx = InvertedIndex()
+    # Populate inverted index and docmap from movies.json
+    idx.build()
+    # Persist built index data structures to disk cache
+    idx.save()
+
+
 def main() -> None:
+    """
+    CLI entry point and command router.
+    
+    Why it exists: Parses incoming terminal arguments and routes execution to search or build workflows.
+    How it works: Uses argparse to capture commands/arguments, then evaluates via match/case.
+    """
+    # Initialize argument parser with CLI description header
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
+    # Add subparser handler to manage subcommands ('build', 'search')
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    # Register 'build' subcommand with help text
     subparsers.add_parser("build", help="Build and save the inverted index")
 
+    # Register 'search' subcommand with help text
     search_parser = subparsers.add_parser("search", help="Search movies using keywords")
+    # Define required positional string argument 'query' for search command
     search_parser.add_argument("query", type=str, help="Search query")
 
+    # Parse command-line arguments passed at execution time
     args = parser.parse_args()
-    movies = load_movies()
 
-
+    # Route execution based on command argument passed
     match args.command:
         case "search":
-            print(f"Searching for: {args.query}")
-            tokenized_query = tokenize_text(args.query)
-            result = []
-           
-            for movie in movies:
-                tokenized_title = tokenize_text(movie["title"])
-                if any(q_token in tokenized_title for q_token in tokenized_query):
-                    result.append(movie)
+            # Instantiate InvertedIndex container
+            idx = InvertedIndex()
+            try:
+                # Attempt to hydrate index state from disk cache
+                idx.load()
+            except FileNotFoundError:
+                # Handle missing index files gracefully if build step was skipped
+                print("Index not found. Please run build first.")
+                return
 
-            for i, movie in enumerate(result[:5], start=1):
-                    print(f"{i}. {movie['title']}")
+            # Output initial search query status message
+            print(f"Searching for: {args.query}")
+            # Initialize empty set to collect matching document IDs without duplicates
+            matching_doc_ids = set()
+            # Tokenize and stem user's raw search query
+            tokenized_query = tokenize_text(args.query)
+
+            # Loop over each token extracted from user query
+            for token in tokenized_query:
+                # Retrieve document IDs matching current query token
+                doc_ids = idx.get_documents(token)
+                # Loop through retrieved document IDs
+                for doc_id in doc_ids:
+                    # Collect document ID into set (automatically deduplicates)
+                    matching_doc_ids.add(doc_id)
+
+            # Initialize empty list to hold final resolved movie objects
+            result = []
+            # Sort document IDs numerically for deterministic result order
+            for doc_id in sorted(matching_doc_ids):
+                # Retrieve full movie record from docmap using doc_id and append to results
+                result.append(idx.docmap[doc_id])
+                # Cap result set at top 5 matching movies
+                if len(result) >= 5:
+                    break
+
+            # Print formatted top 5 results with index rank, title, and movie ID
+            for i, movie in enumerate(result, start=1):
+                print(f"{i}. {movie['title']}, (ID: {movie['id']})")
 
         case "build":
-              build_command()
+            # Delegate execution to build command handler
+            build_command()
 
         case _:
+            # Display CLI help menu if command is missing or unrecognized
             parser.print_help()
 
 
+# Boilerplate execution guard ensuring main() runs only when script is invoked directly
 if __name__ == "__main__":
     main()
