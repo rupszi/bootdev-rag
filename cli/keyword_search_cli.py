@@ -12,6 +12,7 @@ import string
 from typing import List
 # Import PorterStemmer to reduce words to their stem/root form (e.g., 'running' -> 'run')
 from nltk.stem import PorterStemmer
+from collections import Counter
 
 
 def load_movies() -> List[dict]:
@@ -72,6 +73,8 @@ class InvertedIndex:
         self.index: dict[str, set[int]] = {}
         # Initialize empty dictionary mapping doc ID (int) -> full movie dict (dict)
         self.docmap: dict[str, dict] = {}
+        # Maps each doc_id (int) to a Counter object storing token counts
+        self.term_frequencies: dict[int, Counter] = {}
 
     def __add_document(self, doc_id: int, text: str) -> None:
         """
@@ -82,6 +85,10 @@ class InvertedIndex:
         """
         # Tokenize incoming document text (title + description)
         tokens = tokenize_text(text)
+
+        # Counter loops through 'tokens' internally and builds the frequencies in one line:
+        self.term_frequencies[doc_id] =  Counter(tokens)
+
         # Iterate over each stemmed token generated from the text
         for token in tokens:
             # Ensure the token key exists in self.index (defaulting to empty set) and add doc_id to it
@@ -134,6 +141,9 @@ class InvertedIndex:
         with open("cache/docmap.pkl", "wb") as f:
             # Pickle dump self.docmap state to binary file
             pickle.dump(self.docmap, f)
+        with open("cache/term_frequencies.pkl", "wb") as f:
+                    # Pickle dump self.docmap state to binary file
+                    pickle.dump(self.term_frequencies, f)
 
     def load(self) -> None:
         """
@@ -150,6 +160,9 @@ class InvertedIndex:
         with open("cache/docmap.pkl", "rb") as f:
             # Unpickle binary data and restore to self.docmap attribute
             self.docmap = pickle.load(f)
+        with open("cache/term_frequencies.pkl", "rb") as f:
+            # Unpickle binary data and restore to self.docmap attribute
+            self.term_frequencies = pickle.load(f)
 
 
 def build_command() -> None:
