@@ -211,6 +211,12 @@ def main() -> None:
     # Define required positional string argument 'query' for search command
     search_parser.add_argument("query", type=str, help="Search query")
 
+    # Register 'tf' subcommand with help text
+    tf_parser = subparsers.add_parser("tf", help="Term frequency counter")
+    tf_parser.add_argument("doc_id", type=int, help="document ID.")
+    tf_parser.add_argument("term", type=str, help="Process term.")
+
+
     # Parse command-line arguments passed at execution time
     args = parser.parse_args()
 
@@ -260,6 +266,24 @@ def main() -> None:
         case "build":
             # Delegate execution to build command handler
             build_command()
+
+        case "tf":
+            idx = InvertedIndex()
+            try:
+                # 1. Hydrate index state from disk cache
+                idx.load()
+            except FileNotFoundError:
+                print("Index not found. Please run build first.")
+                return
+
+            # 2. Tokenize and stem the single term input from CLI
+            stemmed_term = tokenize_single_term(args.term)
+
+            # 3. Look up term frequency in the given document ID
+            tf = idx.get_tf(args.doc_id, stemmed_term)
+
+            # 4. Print the integer frequency result
+            print(f"The stemmed term is: {tf}")
 
         case _:
             # Display CLI help menu if command is missing or unrecognized
