@@ -29,6 +29,14 @@ def load_movies() -> List[dict]:
     # Extract and return the array of movie objects stored under the 'movies' key
     return data["movies"]
 
+def tokenize_single_term(term: str) -> str:
+    """
+    Tokenizes a single term.
+    """
+    tokens = tokenize_text(term)
+    if len(tokens) != 1:
+        raise ValueError("Term must be a single term!")
+    return tokens[0]
 
 def tokenize_text(text: str) -> List[str]:
     """
@@ -72,7 +80,7 @@ class InvertedIndex:
         # Initialize empty dictionary mapping tokens (str) -> set of doc IDs (set[int])
         self.index: dict[str, set[int]] = {}
         # Initialize empty dictionary mapping doc ID (int) -> full movie dict (dict)
-        self.docmap: dict[str, dict] = {}
+        self.docmap: dict[int, dict] = {}
         # Maps each doc_id (int) to a Counter object storing token counts
         self.term_frequencies: dict[int, Counter] = {}
 
@@ -103,6 +111,10 @@ class InvertedIndex:
         """
         # Retrieve term's document ID set from index (default empty set if missing) and return as sorted list
         return sorted(self.index.get(term, set()))
+
+    def get_tf(self, doc_id: int, term: str) -> int:
+        doc_counter = self.term_frequencies.get(doc_id, Counter())
+        return doc_counter[term]
 
     def build(self) -> None:
         """
