@@ -1,122 +1,120 @@
-Building a Fast Keyword Search Engine from Scratch
+Here is an expanded, production-ready README.md that elevates the project documentation without adding unnecessary fluff or overcomplicating the underlying design.
+Fast Keyword Search Engine in Python
 
-This project implements a lightweight Inverted Index Search Engine in Python. Instead of scanning through thousands of raw JSON files every time a user types a search query, it processes raw data once, builds an index, and saves it to disk for near-instant retrieval.
-What Problem Does This Solve?
+A lightweight, zero-dependency Inverted Index Search Engine built from scratch in Python. It processes unstructured document datasets once, constructs an in-memory postings map, and serializes artifacts to disk to enable O(1) term lookups and near-instant retrieval.
+Purpose & Problem Statement
 
-Imagine you have a library containing 10,000 movie descriptions, and you want to find every movie mentioning the word "hero".
+When querying thousands of raw JSON files or unindexed records, traditional search implementations default to linear scans:
 
-    The Naive Way (Sequential Scan): You open book #1, read every word, check for "hero", then open book #2, read every word, check for "hero"... all the way to book #10,000. This is slow and scales poorly as data grows.
+    Naive Approach (Linear Scan): Iterates over every document sequentially, executing substring or regex checks. Time complexity grows linearly as O(N×L), where N is document count and L is average document length.
 
-    The Smart Way (Inverted Index): You flip to the index at the back of a textbook. You look up the word "hero" and immediately see a list of page numbers where it appears: [Page 12, Page 405, Page 892]. You skip straight to those pages.
+    Inverted Index Approach: Maps normalized terms (stems) directly to the set of document IDs containing them. Lookups execute in O(1) average time, shifting indexing complexity to a single offline build phase.
 
-This project builds that exact "back-of-the-book index" for movie titles and descriptions.
-Pipeline Overview
+This engine transforms arbitrary document collections (e.g., movie titles and descriptions) into a binary postings list, eliminating runtime I/O and tokenization overhead on user queries.
+System Architecture
 
-                      ┌──────────────────────────────────────┐
-                      │    RAW DATA INGESTION & PARSING      │
-                      │  movies.json  +  stopwords.txt       │
-                      └──────────────────┬───────────────────┘
-                                         │
-                                         ▼
-                      ┌──────────────────────────────────────┐
-                      │    TEXT NORMALIZATION & TOKENIZATION │
-                      │ Strip Punctuation -> Lowercase      │
-                      │ Drop Stopwords   -> Stem Roots      │
-                      └──────────────────┬───────────────────┘
-                                         │
-                                         ▼
-                      ┌──────────────────────────────────────┐
-                      │   BUILD INVERTED INDEX & PERSIST     │
-                      │ Term -> Set[Doc IDs] & Doc ID -> Metadata│
-                      │ Serialized into cache/*.pkl via Pickle│
-                      └──────────────────┬───────────────────┘
-                                         │
-                                         ▼
-                      ┌──────────────────────────────────────┐
-                      │        CLI SEARCH EXECUTION          │
-                      │ Load cache/*.pkl -> Normalize Query  │
-                      │ O(1) Set Lookup -> Sort IDs -> Print │
-                      └──────────────────────────────────────┘
+                       ┌──────────────────────────────────────┐
+                       │    RAW DATA INGESTION & PARSING      │
+                       │  movies.json  +  stopwords.txt       │
+                       └──────────────────┬───────────────────┘
+                                          │
+                                          ▼
+                       ┌──────────────────────────────────────┐
+                       │   TEXT NORMALIZATION & TOKENIZATION  │
+                       │ Strip Punctuation -> Lowercase       │
+                       │ Drop Stopwords    -> Stem Roots      │
+                       └──────────────────┬───────────────────┘
+                                          │
+                                          ▼
+                       ┌──────────────────────────────────────┐
+                       │    BUILD INVERTED INDEX & PERSIST    │
+                       │ Term -> Set[Doc IDs] & Doc ID Map    │
+                       │ Serialized to cache/*.pkl via Pickle │
+                       └──────────────────┬───────────────────┘
+                                          │
+                                          ▼
+                       ┌──────────────────────────────────────┐
+                       │         CLI SEARCH EXECUTION         │
+                       │ Load cache/*.pkl -> Normalize Query  │
+                       │ O(1) Set Lookup -> Sort IDs -> Print  │
+                       └──────────────────────────────────────┘
 
-Step-by-Step Architecture Walkthrough
-1. Data Normalization (tokenize_text)
+Architectural Walkthrough
+1. Text Normalization Pipeline (tokenize_text)
 
-Raw text is noisy. A search for "brave" shouldn't fail just because the document contains "Brave!", "bravely", or "Brave.".
+To ensure robust match recall across grammatical variants, raw text passes through four sequential transformation stages:
 
-The tokenization pipeline runs text through four distinct filters:
+Raw Input:  "The brave knight fought bravely!"
+1. Case Fold:   "the brave knight fought bravely!"
+2. Strip Punc:  "the brave knight fought bravely"
+3. Filter Stop: ["brave", "knight", "fought", "bravely"]   (filters terms in stopwords.txt)
+4. Stem Roots:  ["brav", "knight", "fought", "brav"]     (PorterStemmer reduction)
 
-Raw Input:   "The brave knight fought bravely!"
-1. Lowercase: "the brave knight fought bravely!"
-2. No Punc:  "the brave knight fought bravely"
-3. No Noise: ["brave", "knight", "fought", "bravely"]  ('the' removed via stopwords.txt)
-4. Stemmed:  ["brav", "knight", "fought", "brav"]    (reduced via PorterStemmer)
+Stemming guarantees that queries like "bravery", "brave", or "bravely" normalize to the same root stem ("brav"), matching identical document IDs.
+2. Primary Data Structures (InvertedIndex)
 
-Why stem words?
-By reducing words to their core stems (brave → brav, bravely → brav), queries match documents regardless of grammatical suffixes.
-2. The Inverted Index (InvertedIndex)
+The engine maintains two core mapping structures:
 
-The class holds two key data structures:
-self.index: dict[str, set[int]]
+    Postings Index (self.index): dict[str, set[int]]
 
-Maps stemmed terms to set of document IDs containing them.
-Python
+    Maps normalized stems directly to sets of document IDs.
+    Python
 
-{
-    "brav": {2054, 2577, 4101, 4104},
-    "space": {101, 402, 988},
-    "knight": {2054, 8812}
-}
+    {
+        "brav": {2054, 2577, 4101, 4104},
+        "space": {101, 402, 988},
+        "knight": {2054, 8812}
+    }
 
-self.docmap: dict[int, dict]
+    Document Map (self.docmap): dict[int, dict]
 
-Maps document IDs directly back to full movie payload metadata.
-Python
+    Maps unique document IDs to their original raw payloads for zero-latency result hydration.
+    Python
 
-{
-    2054: {"id": 2054, "title": "Mohawk", "description": "A brave warrior..."},
-    4101: {"id": 4101, "title": "Tuck Everlasting", "description": "A story about..."}
-}
+    {
+        2054: {"id": 2054, "title": "Mohawk", "description": "A brave warrior..."},
+        4101: {"id": 4101, "title": "Tuck Everlasting", "description": "A story about..."}
+    }
 
-3. Disk Persistence (save & load)
+3. Disk Serialization & Caching
 
-Re-building an index on every terminal search command wastes time.
+    build Phase: Tokenizes dataset records, populates the InvertedIndex in memory, and serializes structures to cache/index.pkl and cache/docmap.pkl using standard library pickle.
 
-    build Command: Converts raw JSON into memory maps, then uses Python's pickle module to freeze these structures into binary files inside cache/:
+    search Phase: Bypasses source files entirely by loading the binary artifacts directly into memory in milliseconds.
 
-        cache/index.pkl
+4. Deterministic Query Execution
 
-        cache/docmap.pkl
+    Query Stemming: Normalizes user input ("brave" → ["brav"]).
 
-    search Command: Reads binary .pkl files directly into memory in milliseconds, bypassing the raw file parsing and tokenization passes entirely.
+    Postings Retrieval: Performs O(1) dictionary lookups (idx.get_documents("brav")).
 
-4. Query Resolution & Deterministic Execution
+    Deterministic Ordering: Converts unordered Python sets into sorted sequences (sorted(matching_doc_ids)), ensuring stable outputs across distinct runtime environments.
 
-When running uv run cli/keyword_search_cli.py search "brave":
+    Hydration: Resolves top document IDs to original metadata titles via self.docmap.
 
-    Tokenize Query: "brave" → ["brav"].
+Usage Guide & Operations
+Installation & Environment Setup
 
-    Lookup Document Sets: idx.get_documents("brav") returns {2054, 2577, 4101, 4104}.
+Ensure uv is installed, then sync project dependencies:
+Bash
 
-    Sort Document IDs: Python set iteration is non-deterministic (unordered across runs). Sorting IDs via sorted(matching_doc_ids) guarantees consistent, deterministic output across test suites and platforms.
+uv sync
 
-    Hydrate Results: The first 5 document IDs are mapped back to their movie titles using idx.docmap.
+Build Index
 
-Usage Guide & Verification
-Build the Index
-
-Parses raw datasets, tokenizes terms, and caches binary files to disk.
+Parse raw input datasets and generate binary cache files in cache/:
 Bash
 
 uv run cli/keyword_search_cli.py build
 
-Search Keywords
+Run Queries
 
-Loads cached binary indexes and prints the top 5 matching results.
+Execute term lookups against the compiled index:
 Bash
 
 uv run cli/keyword_search_cli.py search "brave"
 
-Example Output:
+Sample Output:
 Plaintext
 
 Searching for: brave
@@ -126,4 +124,10 @@ Searching for: brave
 4. Shake, Rattle & Roll, (ID: 4104)
 5. How to Steal a Million, (ID: 2065)
 
-Want to add TF-IDF scoring so results are ranked by relevance instead of doc ID?
+Roadmap & Potential Enhancements
+
+    TF-IDF & BM25 Relevance Scoring: Rank results by term frequency and inverse document frequency rather than raw document ID sequence.
+
+    Boolean Query Logic: Implement AND, OR, and NOT set operations across multiple query terms.
+
+    Positional Indexing: Track word positions within documents to support exact phrase searches (e.g., "brave warrior").
