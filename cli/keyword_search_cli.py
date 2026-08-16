@@ -2,18 +2,20 @@
 import argparse
 # Import json to parse raw movie data stored in JSON format
 import json
-# Import os to check/create cache directories on disk
+# Import math for logarithmic calculations used in Inverse Document Frequency (IDF)
+import math
+# Import os to check and create cache directories on disk
 import os
 # Import pickle to serialize/deserialize Python dictionary state to binary disk files
 import pickle
 # Import string for built-in collections of ASCII punctuation characters
 import string
+# Import Counter to count term occurrences per document efficiently
+from collections import Counter
 # Import type hints to enforce clearer function signatures and contract boundaries
 from typing import List
 # Import PorterStemmer to reduce words to their stem/root form (e.g., 'running' -> 'run')
 from nltk.stem import PorterStemmer
-from collections import Counter
-import math
 
 
 def load_movies() -> List[dict]:
@@ -30,14 +32,22 @@ def load_movies() -> List[dict]:
     # Extract and return the array of movie objects stored under the 'movies' key
     return data["movies"]
 
+
 def tokenize_single_term(term: str) -> str:
     """
-    Tokenizes a single term.
+    Tokenizes and stems a single term input.
+
+    Why it exists: Ensures single keyword CLI inputs (e.g., for TF/IDF) undergo 
+                   identical normalization as document text while validating input count.
+    How it works: Passes text to tokenize_text and enforces that exactly one token is returned.
     """
+    # Tokenize input using standard preprocessing pipeline
     tokens = tokenize_text(term)
+    # Ensure input resolves to exactly one token
     if len(tokens) != 1:
         raise ValueError("Term must be a single term!")
     return tokens[0]
+
 
 def tokenize_text(text: str) -> List[str]:
     """
@@ -71,32 +81,33 @@ def tokenize_text(text: str) -> List[str]:
 
 class InvertedIndex:
     """
-    Core data structure managing term-to-document mappings and metadata lookups.
+    Core data structure managing term-to-document mappings, metadata lookups, and term frequencies.
     
     Attributes:
-        index: Map of stemmed token strings to sets of document integer IDs.
+        index: Map of stemmed token strings to sets of matching document integer IDs.
         docmap: Map of document integer IDs to complete movie dictionaries.
+        term_frequencies: Map of document integer IDs to Counter objects tracking token counts.
     """
     def __init__(self) -> None:
         # Initialize empty dictionary mapping tokens (str) -> set of doc IDs (set[int])
         self.index: dict[str, set[int]] = {}
         # Initialize empty dictionary mapping doc ID (int) -> full movie dict (dict)
         self.docmap: dict[int, dict] = {}
-        # Maps each doc_id (int) to a Counter object storing token counts
+        # Initialize empty dictionary mapping doc ID (int) -> token Counter (Counter)
         self.term_frequencies: dict[int, Counter] = {}
 
     def __add_document(self, doc_id: int, text: str) -> None:
         """
-        Private helper to tokenize document text and add its ID to the inverted index.
+        Private helper to tokenize document text and add its ID to the inverted index and term frequencies.
         
-        Why it exists: Populates the term -> document ID map.
-        How it works: Tokenizes input text, then inserts doc_id into each token's set inside self.index.
+        Why it exists: Populates internal inverted index and term frequency frequency state.
+        How it works: Tokenizes input text, updates term_frequencies Counter, and inserts doc_id into self.index.
         """
         # Tokenize incoming document text (title + description)
         tokens = tokenize_text(text)
 
-        # Counter loops through 'tokens' internally and builds the frequencies in one line:
-        self.term_frequencies[doc_id] =  Counter(tokens)
+        # Count token occurrences within document and assign Counter to doc_id
+        self.term_frequencies[doc_id] = Counter(tokens)
 
         # Iterate over each stemmed token generated from the text
         for token in tokens:
@@ -114,6 +125,12 @@ class InvertedIndex:
         return sorted(self.index.get(term, set()))
 
     def get_tf(self, doc_id: int, term: str) -> int:
+        """
+        Retrieves term frequency count for a given document and term.
+
+        Why it exists: Enables fast single-term frequency lookup per document.
+        How it works: Fetches document Counter from term_frequencies and returns key count (defaulting to 0).
+        """
         doc_counter = self.term_frequencies.get(doc_id, Counter())
         return doc_counter[term]
 
@@ -142,7 +159,7 @@ class InvertedIndex:
         Serializes index structures to disk via pickle.
         
         Why it exists: Persists index state so future search CLI runs skip parsing raw JSON.
-        How it works: Ensures cache directory exists, then binary dumps self.index and self.docmap.
+        How it works: Ensures cache directory exists, then binary dumps index, docmap, and term_frequencies.
         """
         # Create 'cache' directory if it doesn't already exist on disk
         os.makedirs("cache", exist_ok=True)
@@ -154,16 +171,17 @@ class InvertedIndex:
         with open("cache/docmap.pkl", "wb") as f:
             # Pickle dump self.docmap state to binary file
             pickle.dump(self.docmap, f)
+        # Open binary write file handle for term frequencies serialization
         with open("cache/term_frequencies.pkl", "wb") as f:
-                    # Pickle dump self.docmap state to binary file
-                    pickle.dump(self.term_frequencies, f)
+            # Pickle dump self.term_frequencies state to binary file
+            pickle.dump(self.term_frequencies, f)
 
     def load(self) -> None:
         """
         Deserializes index structures from disk via pickle.
         
-        Why it exists: Reconstitutes in-memory index structures rapidly during search phase.
-        How it works: Opens cached .pkl files and unpickles data back into self.index and self.docmap.
+        Why it exists: Reconstitutes in-memory index structures rapidly during query execution.
+        How it works: Opens cached .pkl files and unpickles data back into index, docmap, and term_frequencies.
         """
         # Open binary read file handle for cached index
         with open("cache/index.pkl", "rb") as f:
@@ -173,8 +191,9 @@ class InvertedIndex:
         with open("cache/docmap.pkl", "rb") as f:
             # Unpickle binary data and restore to self.docmap attribute
             self.docmap = pickle.load(f)
+        # Open binary read file handle for cached term frequencies
         with open("cache/term_frequencies.pkl", "rb") as f:
-            # Unpickle binary data and restore to self.docmap attribute
+            # Unpickle binary data and restore to self.term_frequencies attribute
             self.term_frequencies = pickle.load(f)
 
 
@@ -187,7 +206,7 @@ def build_command() -> None:
     """
     # Instantiate new InvertedIndex instance
     idx = InvertedIndex()
-    # Populate inverted index and docmap from movies.json
+    # Populate inverted index, docmap, and term frequencies from movies.json
     idx.build()
     # Persist built index data structures to disk cache
     idx.save()
@@ -197,13 +216,14 @@ def main() -> None:
     """
     CLI entry point and command router.
     
-    Why it exists: Parses incoming terminal arguments and routes execution to search or build workflows.
+    Why it exists: Parses incoming terminal arguments and routes execution to search, build, tf, or idf workflows.
     How it works: Uses argparse to capture commands/arguments, then evaluates via match/case.
     """
     # Initialize argument parser with CLI description header
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
-    # Add subparser handler to manage subcommands ('build', 'search')
+    # Add subparser handler to manage subcommands ('build', 'search', 'tf', 'idf')
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
     # Register 'build' subcommand with help text
     subparsers.add_parser("build", help="Build and save the inverted index")
 
@@ -213,14 +233,13 @@ def main() -> None:
     search_parser.add_argument("query", type=str, help="Search query")
 
     # Register 'tf' subcommand with help text
-    tf_parser = subparsers.add_parser("tf", help="Term frequency counter")
-    tf_parser.add_argument("doc_id", type=int, help="document ID.")
-    tf_parser.add_argument("term", type=str, help="Process term.")
+    tf_parser = subparsers.add_parser("tf", help="Calculate term frequency for a document")
+    tf_parser.add_argument("doc_id", type=int, help="Document ID")
+    tf_parser.add_argument("term", type=str, help="Single term to query")
 
     # Register 'idf' subcommand with help text
-    idf_parser = subparsers.add_parser("idf", help="Inverse document frequency is a way of handling common words that are specific to a given dataset, not just generic stop words.")
-    idf_parser.add_argument("term", type=str, help="Process term.")
-
+    idf_parser = subparsers.add_parser("idf", help="Calculate inverse document frequency for a term")
+    idf_parser.add_argument("term", type=str, help="Single term to query")
 
     # Parse command-line arguments passed at execution time
     args = parser.parse_args()
@@ -275,41 +294,46 @@ def main() -> None:
         case "tf":
             idx = InvertedIndex()
             try:
-                # 1. Hydrate index state from disk cache
-                idx.load()
-            except FileNotFoundError:
-                print("Index not found. Please run build first.")
-                return
-
-            # 2. Tokenize and stem the single term input from CLI
-            stemmed_term = tokenize_single_term(args.term)
-
-            # 3. Look up term frequency in the given document ID
-            tf = idx.get_tf(args.doc_id, stemmed_term)
-
-            # 4. Print the integer frequency result
-            print(f"The stemmed term is: {tf}")
-
-        case "idf":
-            idx = InvertedIndex()   
-
-            try:
-            # Attempt to hydrate index state from disk cache
+                # Hydrate index state from disk cache
                 idx.load()
             except FileNotFoundError:
                 # Handle missing index files gracefully if build step was skipped
                 print("Index not found. Please run build first.")
                 return
 
+            # Tokenize and stem the single term input from CLI
+            stemmed_term = tokenize_single_term(args.term)
+
+            # Look up term frequency in the given document ID
+            tf = idx.get_tf(args.doc_id, stemmed_term)
+
+            # Output integer frequency result to stdout
+            print(tf)
+
+        case "idf":
+            idx = InvertedIndex()   
+            try:
+                # Hydrate index state from disk cache
+                idx.load()
+            except FileNotFoundError:
+                # Handle missing index files gracefully if build step was skipped
+                print("Index not found. Please run build first.")
+                return
+
+            # Tokenize and stem the single term input from CLI
             t_term = tokenize_single_term(args.term)
+
+            # Calculate total document count across the corpus
             total_doc_count = len(idx.docmap)
+
+            # Calculate number of documents containing the tokenized term
             term_match_doc_count = len(idx.get_documents(t_term))
+
+            # Compute smoothed logarithmic Inverse Document Frequency (IDF)
             idf = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
 
+            # Output formatted IDF value rounded to 2 decimal places
             print(f"Inverse document frequency of '{args.term}': {idf:.2f}")
-
-
-        # math.log((total_doc_count + 1) / (term_match_doc_count + 1))
 
         case _:
             # Display CLI help menu if command is missing or unrecognized
