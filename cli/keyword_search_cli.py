@@ -241,6 +241,11 @@ def main() -> None:
     idf_parser = subparsers.add_parser("idf", help="Calculate inverse document frequency for a term")
     idf_parser.add_argument("term", type=str, help="Single term to query")
 
+    # Register 'tfidf' subcommand with help text
+    tfidf_parser = subparsers.add_parser("tfidf", help="Calculate the combinedterm frequency and the inverse document frequency for a term")
+    tfidf_parser.add_argument("doc_id", type=int, help="Document ID")
+    tfidf_parser.add_argument("term", type=str, help="Single term to query")
+
     # Parse command-line arguments passed at execution time
     args = parser.parse_args()
 
