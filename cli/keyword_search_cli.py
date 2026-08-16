@@ -100,7 +100,7 @@ class InvertedIndex:
         """
         Private helper to tokenize document text and add its ID to the inverted index and term frequencies.
         
-        Why it exists: Populates internal inverted index and term frequency frequency state.
+        Why it exists: Populates internal inverted index and term frequency state.
         How it works: Tokenizes input text, updates term_frequencies Counter, and inserts doc_id into self.index.
         """
         # Tokenize incoming document text (title + description)
@@ -131,10 +131,17 @@ class InvertedIndex:
         Why it exists: Enables fast single-term frequency lookup per document.
         How it works: Fetches document Counter from term_frequencies and returns key count (defaulting to 0).
         """
+        # Retrieve term counter for doc_id (default to empty Counter) and return count for specified term
         doc_counter = self.term_frequencies.get(doc_id, Counter())
         return doc_counter[term]
 
     def get_idf(self, term: str) -> float:
+        """
+        Calculates Inverse Document Frequency (IDF) for a stemmed term.
+
+        Why it exists: Measures term rarity across the entire corpus.
+        How it works: Divides total documents by documents containing the term (with smoothing) and takes the natural log.
+        """
         # Calculate total document count across the corpus
         total_doc_count = len(self.docmap)
 
@@ -146,8 +153,17 @@ class InvertedIndex:
         return idf
 
     def get_tfidf(self, doc_id: int, term: str) -> float:
+        """
+        Calculates Term Frequency-Inverse Document Frequency (TF-IDF) score.
+
+        Why it exists: Measures the relative importance of a term within a specific document context.
+        How it works: Multiplies Term Frequency (TF) by Inverse Document Frequency (IDF).
+        """
+        # Calculate Term Frequency for document and term
         tf = self.get_tf(doc_id, term)
+        # Calculate Inverse Document Frequency for term
         idf = self.get_idf(term)
+        # Combine metrics via multiplication
         return tf * idf
 
     def build(self) -> None:
@@ -232,12 +248,12 @@ def main() -> None:
     """
     CLI entry point and command router.
     
-    Why it exists: Parses incoming terminal arguments and routes execution to search, build, tf, or idf workflows.
+    Why it exists: Parses incoming terminal arguments and routes execution to search, build, tf, idf, or tfidf workflows.
     How it works: Uses argparse to capture commands/arguments, then evaluates via match/case.
     """
     # Initialize argument parser with CLI description header
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
-    # Add subparser handler to manage subcommands ('build', 'search', 'tf', 'idf')
+    # Add subparser handler to manage subcommands ('build', 'search', 'tf', 'idf', 'tfidf')
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Register 'build' subcommand with help text
@@ -258,7 +274,7 @@ def main() -> None:
     idf_parser.add_argument("term", type=str, help="Single term to query")
 
     # Register 'tfidf' subcommand with help text
-    tfidf_parser = subparsers.add_parser("tfidf", help="Calculate the combined term frequency and the inverse document frequency for a term")
+    tfidf_parser = subparsers.add_parser("tfidf", help="Calculate the combined term frequency and inverse document frequency for a term")
     tfidf_parser.add_argument("doc_id", type=int, help="Document ID")
     tfidf_parser.add_argument("term", type=str, help="Single term to query")
 
@@ -360,12 +376,13 @@ def main() -> None:
                 print("Index not found. Please run build first.")
                 return
 
-        # The TF part:
-        # Tokenize and stem the single term input from CLI
+            # Tokenize and stem the single term input from CLI
             stemmed_term = tokenize_single_term(args.term)
 
+            # Calculate TF-IDF score for the given document ID and term
             tf_idf = idx.get_tfidf(args.doc_id, stemmed_term)
 
+            # Output formatted TF-IDF value rounded to 2 decimal places
             print(f"TF-IDF score of '{args.term}' in document '{args.doc_id}': {tf_idf:.2f}")
 
         case _:
