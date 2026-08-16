@@ -242,7 +242,7 @@ def main() -> None:
     idf_parser.add_argument("term", type=str, help="Single term to query")
 
     # Register 'tfidf' subcommand with help text
-    tfidf_parser = subparsers.add_parser("tfidf", help="Calculate the combinedterm frequency and the inverse document frequency for a term")
+    tfidf_parser = subparsers.add_parser("tfidf", help="Calculate the combined term frequency and the inverse document frequency for a term")
     tfidf_parser.add_argument("doc_id", type=int, help="Document ID")
     tfidf_parser.add_argument("term", type=str, help="Single term to query")
 
@@ -339,6 +339,40 @@ def main() -> None:
 
             # Output formatted IDF value rounded to 2 decimal places
             print(f"Inverse document frequency of '{args.term}': {idf:.2f}")
+
+        case "tfidf":
+            idx = InvertedIndex()   
+            try:
+                # Hydrate index state from disk cache
+                idx.load()
+            except FileNotFoundError:
+                # Handle missing index files gracefully if build step was skipped
+                print("Index not found. Please run build first.")
+                return
+
+        # The TF part:
+        # Tokenize and stem the single term input from CLI
+            stemmed_term = tokenize_single_term(args.term)
+
+            # Look up term frequency in the given document ID
+            tf = idx.get_tf(args.doc_id, stemmed_term)            
+
+        # The IDF part
+        # Tokenize and stem the single term input from CLI
+            t_term = tokenize_single_term(args.term)
+
+            # Calculate total document count across the corpus
+            total_doc_count = len(idx.docmap)
+
+            # Calculate number of documents containing the tokenized term
+            term_match_doc_count = len(idx.get_documents(t_term))
+
+            # Compute smoothed logarithmic Inverse Document Frequency (IDF)
+            idf = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
+
+            tf_idf = tf * idf
+
+            print(f"TF-IDF score of '{args.term}' in document '{args.doc_id}': {tf_idf:.2f}")
 
         case _:
             # Display CLI help menu if command is missing or unrecognized
