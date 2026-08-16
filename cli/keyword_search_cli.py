@@ -301,8 +301,10 @@ def main() -> None:
                 print("Index not found. Please run build first.")
                 return
 
-            tokenized_term = tokenize_single_term(args.term)
-            calculated = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
+            t_term = tokenize_single_term(args.term)
+            total_doc_count = len(idx.docmap)
+            term_match_doc_count = len(idx.get_documents(t_term))
+            idf = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
 
             print(f"Inverse document frequency of '{args.term}': {idf:.2f}")
 
