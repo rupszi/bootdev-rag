@@ -13,6 +13,7 @@ from typing import List
 # Import PorterStemmer to reduce words to their stem/root form (e.g., 'running' -> 'run')
 from nltk.stem import PorterStemmer
 from collections import Counter
+import math
 
 
 def load_movies() -> List[dict]:
@@ -216,6 +217,10 @@ def main() -> None:
     tf_parser.add_argument("doc_id", type=int, help="document ID.")
     tf_parser.add_argument("term", type=str, help="Process term.")
 
+    # Register 'idf' subcommand with help text
+    idf_parser = subparsers.add_parser("idf", help="Inverse document frequency is a way of handling common words that are specific to a given dataset, not just generic stop words.")
+    idf_parser.add_argument("term", type=str, help="Process term.")
+
 
     # Parse command-line arguments passed at execution time
     args = parser.parse_args()
@@ -284,6 +289,25 @@ def main() -> None:
 
             # 4. Print the integer frequency result
             print(f"The stemmed term is: {tf}")
+
+        case "idf":
+            idx = InvertedIndex()   
+
+            try:
+            # Attempt to hydrate index state from disk cache
+                idx.load()
+            except FileNotFoundError:
+                # Handle missing index files gracefully if build step was skipped
+                print("Index not found. Please run build first.")
+                return
+
+            tokenized_term = tokenize_single_term(args.term)
+            calculated = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
+
+            print(f"Inverse document frequency of '{args.term}': {idf:.2f}")
+
+
+        # math.log((total_doc_count + 1) / (term_match_doc_count + 1))
 
         case _:
             # Display CLI help menu if command is missing or unrecognized
