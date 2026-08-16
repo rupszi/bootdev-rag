@@ -134,6 +134,22 @@ class InvertedIndex:
         doc_counter = self.term_frequencies.get(doc_id, Counter())
         return doc_counter[term]
 
+    def get_idf(self, term: str) -> float:
+        # Calculate total document count across the corpus
+        total_doc_count = len(self.docmap)
+
+        # Calculate number of documents containing the tokenized term
+        term_match_doc_count = len(self.get_documents(term))
+
+        # Compute smoothed logarithmic Inverse Document Frequency (IDF)
+        idf = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
+        return idf
+
+    def get_tfidf(self, doc_id: int, term: str) -> float:
+        tf = self.get_tf(doc_id, term)
+        idf = self.get_idf(term)
+        return tf * idf
+
     def build(self) -> None:
         """
         Executes complete index construction from raw movie data.
@@ -326,16 +342,10 @@ def main() -> None:
                 return
 
             # Tokenize and stem the single term input from CLI
-            t_term = tokenize_single_term(args.term)
-
-            # Calculate total document count across the corpus
-            total_doc_count = len(idx.docmap)
-
-            # Calculate number of documents containing the tokenized term
-            term_match_doc_count = len(idx.get_documents(t_term))
+            stemmed_term = tokenize_single_term(args.term)
 
             # Compute smoothed logarithmic Inverse Document Frequency (IDF)
-            idf = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
+            idf = idx.get_idf(stemmed_term)
 
             # Output formatted IDF value rounded to 2 decimal places
             print(f"Inverse document frequency of '{args.term}': {idf:.2f}")
@@ -354,23 +364,7 @@ def main() -> None:
         # Tokenize and stem the single term input from CLI
             stemmed_term = tokenize_single_term(args.term)
 
-            # Look up term frequency in the given document ID
-            tf = idx.get_tf(args.doc_id, stemmed_term)            
-
-        # The IDF part
-        # Tokenize and stem the single term input from CLI
-            t_term = tokenize_single_term(args.term)
-
-            # Calculate total document count across the corpus
-            total_doc_count = len(idx.docmap)
-
-            # Calculate number of documents containing the tokenized term
-            term_match_doc_count = len(idx.get_documents(t_term))
-
-            # Compute smoothed logarithmic Inverse Document Frequency (IDF)
-            idf = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
-
-            tf_idf = tf * idf
+            tf_idf = idx.get_tfidf(args.doc_id, stemmed_term)
 
             print(f"TF-IDF score of '{args.term}' in document '{args.doc_id}': {tf_idf:.2f}")
 
