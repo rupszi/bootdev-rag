@@ -305,8 +305,8 @@ def main() -> None:
 
     # Register 'bm25_tf' subcommand with help text
     bm25_tf_parser = subparsers.add_parser("bm25tf", help="Get BM25 TF score for a given term")
-    bm25_tf_parser.add_argument("term", type=str, help="Term to get BM25 TF score for")
     bm25_tf_parser.add_argument("doc_id", type=int, help="Document ID")
+    bm25_tf_parser.add_argument("term", type=str, help="Term to get BM25 TF score for")
     bm25_tf_parser.add_argument("k1", type=float, nargs="?", default=BM25_K1, help="Tunable BM25 K1 parameter")
 
     # Parse command-line arguments passed at execution time
@@ -443,7 +443,7 @@ def main() -> None:
 
             # Tokenize and stem the single term input from CLI
             stemmed_term = tokenize_single_term(args.term)
-            bm25tf = idx.get_bm25_tf(stemmed_term, args.doc_id, args.k1)
+            bm25tf = idx.get_bm25_tf(args.doc_id, stemmed_term, args.k1)
             print(f"BM25 TF score of '{args.term}' in document '{args.doc_id}': {bm25tf:.2f}")
 
 
