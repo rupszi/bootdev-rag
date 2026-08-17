@@ -20,6 +20,8 @@ from nltk.stem import PorterStemmer
 """
 Constants
 """
+# Default term frequency saturation parameter for Okapi BM25 ranking.
+# Controls how quickly additional term occurrences diminish in marginal relevance (typically between 1.2 and 2.0).
 BM25_K1 = 1.5
 
 
@@ -173,20 +175,35 @@ class InvertedIndex:
         return tf * idf
 
     def get_bm25_idf(self, term: str) -> float:
+        """
+        Calculates BM25 Inverse Document Frequency (IDF) score for a stemmed term.
+
+        Why it exists: Applies Okapi BM25's non-linear IDF curve to weight term rarity.
+        How it works: Evaluates ln((N - df + 0.5) / (df + 0.5) + 1) using corpus size N and match count df.
+        """
         # Calculate total document count across the corpus
         total_doc_count = len(self.docmap)
 
         # Calculate number of documents containing the tokenized term
         term_match_doc_count = len(self.get_documents(term))
 
+        # Compute BM25 non-linear logarithmic IDF score
         bm25_idf = math.log((total_doc_count - term_match_doc_count + 0.5) / (term_match_doc_count + 0.5) + 1)
         return bm25_idf
 
-    def get_bm25_tf(self, doc_id, term, k1=BM25_K1):
+    def get_bm25_tf(self, doc_id: int, term: str, k1: float = BM25_K1) -> float:
+        """
+        Calculates saturated BM25 Term Frequency (TF) score for a document and term.
+
+        Why it exists: Prevents high raw term counts from disproportionately biasing document relevance ranks.
+        How it works: Retrieves raw term frequency and applies non-linear saturation curve (tf * (k1 + 1)) / (tf + k1).
+        """
+        # Retrieve raw integer term occurrence count within the targeted document
         tf = self.get_tf(doc_id, term)
+
+        # Calculate saturated term frequency score using parameter k1
         bm25_tf = (tf * (k1 + 1)) / (tf + k1)
         return bm25_tf
-
 
     def build(self) -> None:
         """
@@ -265,16 +282,41 @@ def build_command() -> None:
     # Persist built index data structures to disk cache
     idx.save()        
 
+
+def bm25_tf_command(doc_id: int, term: str, k1: float = BM25_K1) -> float:
+    """
+    Orchestrates execution for the BM25 Term Frequency CLI workflow.
+
+    Why it exists: Decouples business/index logic from raw CLI argument handling.
+    How it works: Hydrates index from disk, normalizes input term, computes saturated BM25 TF, and returns float score.
+    """
+    # Instantiate inverted index container
+    idx = InvertedIndex()
+    try:
+        # Hydrate index state from binary disk cache
+        idx.load()
+    except FileNotFoundError:
+        # Print fallback notice if cache does not exist
+        print("Index not found. Please run build first.")
+        return 0.0
+
+    # Tokenize and stem the single keyword term input
+    stemmed_term = tokenize_single_term(term)
+
+    # Compute and return saturated BM25 term frequency score
+    return idx.get_bm25_tf(doc_id, stemmed_term, k1)
+
+
 def main() -> None:
     """
     CLI entry point and command router.
     
-    Why it exists: Parses incoming terminal arguments and routes execution to search, build, tf, idf, or tfidf workflows.
+    Why it exists: Parses incoming terminal arguments and routes execution to search, build, tf, idf, tfidf, or BM25 workflows.
     How it works: Uses argparse to capture commands/arguments, then evaluates via match/case.
     """
     # Initialize argument parser with CLI description header
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
-    # Add subparser handler to manage subcommands ('build', 'search', 'tf', 'idf', 'tfidf')
+    # Add subparser handler to manage subcommands ('build', 'search', 'tf', 'idf', 'tfidf', 'bm25idf', 'bm25tf')
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Register 'build' subcommand with help text
@@ -299,12 +341,12 @@ def main() -> None:
     tfidf_parser.add_argument("doc_id", type=int, help="Document ID")
     tfidf_parser.add_argument("term", type=str, help="Single term to query")
 
-    # Register 'bm25_idf' subcommand with help text
+    # Register 'bm25idf' subcommand with help text
     bm25_idf_parser = subparsers.add_parser("bm25idf", help="Get BM25 IDF score for a given term")
     bm25_idf_parser.add_argument("term", type=str, help="Term to get BM25 IDF score for")
 
-    # Register 'bm25_tf' subcommand with help text
-    bm25_tf_parser = subparsers.add_parser("bm25tf", help="Get BM25 TF score for a given term")
+    # Register 'bm25tf' subcommand with positional doc_id, term, and optional k1 argument
+    bm25_tf_parser = subparsers.add_parser("bm25tf", help="Get BM25 TF score for a given document ID and term")
     bm25_tf_parser.add_argument("doc_id", type=int, help="Document ID")
     bm25_tf_parser.add_argument("term", type=str, help="Term to get BM25 TF score for")
     bm25_tf_parser.add_argument("k1", type=float, nargs="?", default=BM25_K1, help="Tunable BM25 K1 parameter")
@@ -432,23 +474,10 @@ def main() -> None:
             print(f"BM25 IDF score of '{args.term}': {bm25_idf:.2f}")
 
         case "bm25tf":
-            idx = InvertedIndex()   
-            try:
-                # Hydrate index state from disk cache
-                idx.load()
-            except FileNotFoundError:
-                # Handle missing index files gracefully if build step was skipped
-                print("Index not found. Please run build first.")
-                return
-
-            # Tokenize and stem the single term input from CLI
-            stemmed_term = tokenize_single_term(args.term)
-            bm25tf = idx.get_bm25_tf(args.doc_id, stemmed_term, args.k1)
+            # Delegate to specialized command handler and print output formatted to 2 decimal places
+            bm25tf = bm25_tf_command(args.doc_id, args.term, args.k1)
             print(f"BM25 TF score of '{args.term}' in document '{args.doc_id}': {bm25tf:.2f}")
 
-
-
-            
         case _:
             # Display CLI help menu if command is missing or unrecognized
             parser.print_help()
