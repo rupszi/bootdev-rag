@@ -88,6 +88,15 @@ class InvertedIndex:
         docmap: Map of document integer IDs to complete movie dictionaries.
         term_frequencies: Map of document integer IDs to Counter objects tracking token counts.
     """
+
+    """
+    Constants
+    """
+    BM25_K1 = 1.5
+
+
+
+
     def __init__(self) -> None:
         # Initialize empty dictionary mapping tokens (str) -> set of doc IDs (set[int])
         self.index: dict[str, set[int]] = {}
@@ -175,6 +184,11 @@ class InvertedIndex:
 
         bm25_idf = math.log((total_doc_count - term_match_doc_count + 0.5) / (term_match_doc_count + 0.5) + 1)
         return bm25_idf
+
+    def get_bm25_tf(self, doc_id, term, k1=BM25_K1):
+
+
+
 
     def build(self) -> None:
         """
