@@ -167,7 +167,7 @@ class InvertedIndex:
         return tf * idf
 
     def get_bm25_idf(self, term: str) -> float:
-    # Calculate total document count across the corpus
+        # Calculate total document count across the corpus
         total_doc_count = len(self.docmap)
 
         # Calculate number of documents containing the tokenized term
@@ -288,7 +288,7 @@ def main() -> None:
     tfidf_parser.add_argument("term", type=str, help="Single term to query")
 
     # Register 'bm25_idf' subcommand with help text
-    bm25_idf_parser = subparsers.add_parser("bm25_idf", help="Get BM25 IDF score for a given term")
+    bm25_idf_parser = subparsers.add_parser("bm25idf", help="Get BM25 IDF score for a given term")
     bm25_idf_parser.add_argument("term", type=str, help="Term to get BM25 IDF score for")
 
     # Parse command-line arguments passed at execution time
@@ -398,7 +398,7 @@ def main() -> None:
             # Output formatted TF-IDF value rounded to 2 decimal places
             print(f"TF-IDF score of '{args.term}' in document '{args.doc_id}': {tf_idf:.2f}")
 
-        case "bm25_idf":
+        case "bm25idf":
             idx = InvertedIndex()   
             try:
                 # Hydrate index state from disk cache
@@ -408,6 +408,10 @@ def main() -> None:
                 print("Index not found. Please run build first.")
                 return
 
+            # Tokenize and stem the single term input from CLI
+            stemmed_term = tokenize_single_term(args.term)
+            bm25_idf = idx.get_bm25_idf(stemmed_term)
+            print(f"BM25 IDF score of '{args.term}': {bm25_idf:.2f}")
 
             
         case _:
