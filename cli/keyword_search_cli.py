@@ -166,6 +166,16 @@ class InvertedIndex:
         # Combine metrics via multiplication
         return tf * idf
 
+    def get_bm25_idf(self, term: str) -> float:
+    # Calculate total document count across the corpus
+        total_doc_count = len(self.docmap)
+
+        # Calculate number of documents containing the tokenized term
+        term_match_doc_count = len(self.get_documents(term))
+
+        bm25_idf = math.log((total_doc_count - term_match_doc_count + 0.5) / (term_match_doc_count + 0.5) + 1)
+        return bm25_idf
+
     def build(self) -> None:
         """
         Executes complete index construction from raw movie data.
@@ -241,8 +251,7 @@ def build_command() -> None:
     # Populate inverted index, docmap, and term frequencies from movies.json
     idx.build()
     # Persist built index data structures to disk cache
-    idx.save()
-
+    idx.save()        
 
 def main() -> None:
     """
@@ -277,6 +286,10 @@ def main() -> None:
     tfidf_parser = subparsers.add_parser("tfidf", help="Calculate the combined term frequency and inverse document frequency for a term")
     tfidf_parser.add_argument("doc_id", type=int, help="Document ID")
     tfidf_parser.add_argument("term", type=str, help="Single term to query")
+
+    # Register 'bm25_idf' subcommand with help text
+    bm25_idf_parser = subparsers.add_parser("bm25_idf", help="Get BM25 IDF score for a given term")
+    bm25_idf_parser.add_argument("term", type=str, help="Term to get BM25 IDF score for")
 
     # Parse command-line arguments passed at execution time
     args = parser.parse_args()
@@ -385,6 +398,18 @@ def main() -> None:
             # Output formatted TF-IDF value rounded to 2 decimal places
             print(f"TF-IDF score of '{args.term}' in document '{args.doc_id}': {tf_idf:.2f}")
 
+        case "bm25_idf":
+            idx = InvertedIndex()   
+            try:
+                # Hydrate index state from disk cache
+                idx.load()
+            except FileNotFoundError:
+                # Handle missing index files gracefully if build step was skipped
+                print("Index not found. Please run build first.")
+                return
+
+
+            
         case _:
             # Display CLI help menu if command is missing or unrecognized
             parser.print_help()
