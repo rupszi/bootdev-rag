@@ -17,6 +17,11 @@ from typing import List
 # Import PorterStemmer to reduce words to their stem/root form (e.g., 'running' -> 'run')
 from nltk.stem import PorterStemmer
 
+"""
+Constants
+"""
+BM25_K1 = 1.5
+
 
 def load_movies() -> List[dict]:
     """
@@ -88,14 +93,6 @@ class InvertedIndex:
         docmap: Map of document integer IDs to complete movie dictionaries.
         term_frequencies: Map of document integer IDs to Counter objects tracking token counts.
     """
-
-    """
-    Constants
-    """
-    BM25_K1 = 1.5
-
-
-
 
     def __init__(self) -> None:
         # Initialize empty dictionary mapping tokens (str) -> set of doc IDs (set[int])
@@ -186,8 +183,9 @@ class InvertedIndex:
         return bm25_idf
 
     def get_bm25_tf(self, doc_id, term, k1=BM25_K1):
-
-
+        tf = self.get_tf(doc_id, term)
+        bm25_tf = (tf * (k1 + 1)) / (tf + k1)
+        return bm25_tf
 
 
     def build(self) -> None:
@@ -304,6 +302,12 @@ def main() -> None:
     # Register 'bm25_idf' subcommand with help text
     bm25_idf_parser = subparsers.add_parser("bm25idf", help="Get BM25 IDF score for a given term")
     bm25_idf_parser.add_argument("term", type=str, help="Term to get BM25 IDF score for")
+
+    # Register 'bm25_tf' subcommand with help text
+    bm25_tf_parser = subparsers.add_parser("bm25tf", help="Get BM25 TF score for a given term")
+    bm25_tf_parser.add_argument("term", type=str, help="Term to get BM25 TF score for")
+    bm25_tf_parser.add_argument("doc_id", type=int, help="Document ID")
+    bm25_tf_parser.add_argument("k1", type=float, nargs="?", default=BM25_K1, help="Tunable BM25 K1 parameter")
 
     # Parse command-line arguments passed at execution time
     args = parser.parse_args()
@@ -426,6 +430,23 @@ def main() -> None:
             stemmed_term = tokenize_single_term(args.term)
             bm25_idf = idx.get_bm25_idf(stemmed_term)
             print(f"BM25 IDF score of '{args.term}': {bm25_idf:.2f}")
+
+        case "bm25tf":
+            idx = InvertedIndex()   
+            try:
+                # Hydrate index state from disk cache
+                idx.load()
+            except FileNotFoundError:
+                # Handle missing index files gracefully if build step was skipped
+                print("Index not found. Please run build first.")
+                return
+
+            # Tokenize and stem the single term input from CLI
+            stemmed_term = tokenize_single_term(args.term)
+            bm25tf = idx.get_bm25_tf(stemmed_term, args.doc_id, args.k1)
+            print(f"BM25 TF score of '{args.term}' in document '{args.doc_id}': {bm25tf:.2f}")
+
+
 
             
         case _:
