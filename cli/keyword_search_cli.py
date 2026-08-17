@@ -24,6 +24,9 @@ Constants
 # Controls how quickly additional term occurrences diminish in marginal relevance (typically between 1.2 and 2.0).
 BM25_K1 = 1.5
 
+# B is a tunable parameter that controls how much document length affects the score.
+BM25_B = 0.75
+
 
 def load_movies() -> List[dict]:
     """
@@ -103,6 +106,8 @@ class InvertedIndex:
         self.docmap: dict[int, dict] = {}
         # Initialize empty dictionary mapping doc ID (int) -> token Counter (Counter)
         self.term_frequencies: dict[int, Counter] = {}
+        # Initialize an empty dictionary for the document length key/value pairs.
+        self.doc_lengths = {}
 
     def __add_document(self, doc_id: int, text: str) -> None:
         """
