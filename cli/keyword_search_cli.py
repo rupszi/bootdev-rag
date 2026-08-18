@@ -220,6 +220,14 @@ class InvertedIndex:
         bm25_tf = (tf * (k1 + 1)) / (tf + k1)
         return bm25_tf
 
+    def __get_avg_doc_length(self) -> float:
+        total_doc_count = len(self.docmap)
+        if total_doc_count == 0:
+            return 0
+        summ_doc_length = sum(self.doc_lengths.values())
+        avgdl = summ_doc_length / total_doc_count
+        return avgdl
+
     def build(self) -> None:
         """
         Executes complete index construction from raw movie data.
