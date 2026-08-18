@@ -266,16 +266,25 @@ class InvertedIndex:
         return full_bm25
 
     def bm25_search(self, query: str, limit: int = 5) -> List[tuple[int, float]]:
+        # 1. Tokenize query string
         tokens = tokenize_text(query)
         scores = {}
+
+        # 2. Iterate through every document in the corpus
         for doc_id in self.docmap:
             total_score = 0.0
+            # 3. Sum up BM25 scores for each query term
             for term in tokens:
                 total_score += self.bm25(doc_id, term)
 
-            if total_score>0:
+            # 4. Only store documents with positive relevance
+            if total_score > 0:
                 scores[doc_id] = total_score
-        sorted_results = sorted(scores.items(), key = lambda item: item[1], reverse=True)
+
+        # 5. Sort by score descending
+        sorted_results = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+
+        # 6. Return top 'limit' (doc_id, score) pairs
         return sorted_results[:limit]
 
 
