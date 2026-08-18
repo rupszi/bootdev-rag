@@ -27,6 +27,9 @@ BM25_K1 = 1.5
 # B is a tunable parameter that controls how much document length affects the score.
 BM25_B = 0.75
 
+# Setting up default cache folder
+CACHE_DIR = "cache"
+
 
 def load_movies() -> List[dict]:
     """
@@ -107,7 +110,9 @@ class InvertedIndex:
         # Initialize empty dictionary mapping doc ID (int) -> token Counter (Counter)
         self.term_frequencies: dict[int, Counter] = {}
         # Initialize an empty dictionary for the document length key/value pairs.
-        self.doc_lengths = {}
+        self.doc_lengths: dict[int, int] = {}
+        # Initialize the cache path
+        self.doc_lengths_path = os.path.join(CACHE_DIR, "doc_lengths.pkl")
 
     def __add_document(self, doc_id: int, text: str) -> None:
         """
@@ -121,6 +126,7 @@ class InvertedIndex:
 
         # Count token occurrences within document and assign Counter to doc_id
         self.term_frequencies[doc_id] = Counter(tokens)
+        self.doc_lengths[doc_id] = len(tokens)
 
         # Iterate over each stemmed token generated from the text
         for token in tokens:
@@ -251,6 +257,10 @@ class InvertedIndex:
         with open("cache/term_frequencies.pkl", "wb") as f:
             # Pickle dump self.term_frequencies state to binary file
             pickle.dump(self.term_frequencies, f)
+        # Open binary write file handle for doc lengths serialization
+        with open(self.doc_lengths_path, "wb") as f:
+            # Pickle dump self.doc_lengths state to binary file
+            pickle.dump(self.doc_lengths, f)
 
     def load(self) -> None:
         """
@@ -271,6 +281,7 @@ class InvertedIndex:
         with open("cache/term_frequencies.pkl", "rb") as f:
             # Unpickle binary data and restore to self.term_frequencies attribute
             self.term_frequencies = pickle.load(f)
+        # Open self
 
 
 def build_command() -> None:
