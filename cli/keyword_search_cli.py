@@ -260,33 +260,41 @@ class InvertedIndex:
         Why it exists: Combines non-linear term frequency saturation/length normalization with term rarity weighting.
         How it works: Multiplies length-normalized BM25 TF by BM25 IDF score.
         """
+        # Calculate length-normalized BM25 term frequency component
         bm25_tf = self.get_bm25_tf(doc_id, term)
+        # Calculate BM25 inverse document frequency component
         bm25_idf = self.get_bm25_idf(term)
+        # Combine components via scalar multiplication
         full_bm25 = bm25_tf * bm25_idf
         return full_bm25
 
     def bm25_search(self, query: str, limit: int = 5) -> List[tuple[int, float]]:
-        # 1. Tokenize query string
+        """
+        Executes a full Okapi BM25 search query across the document corpus.
+
+        Why it exists: Ranks corpus documents by cumulative BM25 relevance across all query terms.
+        How it works: Tokenizes query, iterates docmap to accumulate term scores, sorts descending, and slices top results.
+        """
+        # Tokenize and stem user search query into normalized terms
         tokens = tokenize_text(query)
         scores = {}
 
-        # 2. Iterate through every document in the corpus
+        # Iterate through every document ID in the indexed corpus
         for doc_id in self.docmap:
             total_score = 0.0
-            # 3. Sum up BM25 scores for each query term
+            # Accumulate BM25 score for each query token
             for term in tokens:
                 total_score += self.bm25(doc_id, term)
 
-            # 4. Only store documents with positive relevance
+            # Store non-zero relevance scores in accumulator dictionary
             if total_score > 0:
                 scores[doc_id] = total_score
 
-        # 5. Sort by score descending
+        # Sort document scores in descending order (highest relevance first)
         sorted_results = sorted(scores.items(), key=lambda item: item[1], reverse=True)
 
-        # 6. Return top 'limit' (doc_id, score) pairs
+        # Slice and return top 'limit' (doc_id, score) pairs
         return sorted_results[:limit]
-
 
     def build(self) -> None:
         """
@@ -408,7 +416,7 @@ def main() -> None:
     """
     # Initialize argument parser with CLI description header
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
-    # Add subparser handler to manage subcommands ('build', 'search', 'tf', 'idf', 'tfidf', 'bm25idf', 'bm25tf')
+    # Add subparser handler to manage subcommands ('build', 'search', 'tf', 'idf', 'tfidf', 'bm25idf', 'bm25tf', 'bm25search')
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Register 'build' subcommand with help text
@@ -444,11 +452,10 @@ def main() -> None:
     bm25_tf_parser.add_argument("k1", type=float, nargs="?", default=BM25_K1, help="Tunable BM25 K1 parameter")
     bm25_tf_parser.add_argument("b", type=float, nargs="?", default=BM25_B, help="Tunable BM25 B parameter")
 
+    # Register 'bm25search' subcommand with query argument and optional limit flag
     bm25search_parser = subparsers.add_parser("bm25search", help="Search movies using full BM25 scoring")
     bm25search_parser.add_argument("query", type=str, help="Search query")
-    # Add double dashes for optional flag, and default=5 for the default value
     bm25search_parser.add_argument("--limit", type=int, default=5, help="Limit the query results (default: 5)")
-
 
     # Parse command-line arguments passed at execution time
     args = parser.parse_args()
@@ -587,10 +594,10 @@ def main() -> None:
                 print("Index not found. Please run build first.")
                 return
 
-            # 1. Fetch top (doc_id, score) pairs
+            # Fetch top (doc_id, score) pairs matching the BM25 search query
             results = idx.bm25_search(args.query, args.limit)
 
-            # 2. Iterate through results and print each item
+            # Iterate through results and print formatted rank, ID, title, and BM25 score
             for rank, (doc_id, score) in enumerate(results, start=1):
                 movie = idx.docmap[doc_id]
                 print(f"{rank}. ({doc_id}) {movie['title']} - Score: {score:.2f}")
