@@ -24,7 +24,8 @@ Constants
 # Controls how quickly additional term occurrences diminish in marginal relevance (typically between 1.2 and 2.0).
 BM25_K1 = 1.5
 
-# B is a tunable parameter that controls how much document length affects the score.
+# Default document length normalization parameter for Okapi BM25 ranking.
+# Controls the degree to which document length penalizes term occurrences (0.0 = no penalty, 1.0 = full length scaling).
 BM25_B = 0.75
 
 # Cache File Paths
@@ -98,12 +99,13 @@ def tokenize_text(text: str) -> List[str]:
 
 class InvertedIndex:
     """
-    Core data structure managing term-to-document mappings, metadata lookups, and term frequencies.
+    Core data structure managing term-to-document mappings, metadata lookups, term frequencies, and document lengths.
     
     Attributes:
         index: Map of stemmed token strings to sets of matching document integer IDs.
         docmap: Map of document integer IDs to complete movie dictionaries.
         term_frequencies: Map of document integer IDs to Counter objects tracking token counts.
+        doc_lengths: Map of document integer IDs to total token count (length) of each document.
     """
 
     def __init__(self) -> None:
@@ -113,23 +115,22 @@ class InvertedIndex:
         self.docmap: dict[int, dict] = {}
         # Initialize empty dictionary mapping doc ID (int) -> token Counter (Counter)
         self.term_frequencies: dict[int, Counter] = {}
-        # Initialize an empty dictionary for the document length key/value pairs.
+        # Initialize dictionary mapping doc ID (int) -> total token count (int)
         self.doc_lengths: dict[int, int] = {}
-        # Initialize the cache path
-        self.doc_lengths_path = os.path.join(CACHE_DIR, "doc_lengths.pkl")
 
     def __add_document(self, doc_id: int, text: str) -> None:
         """
-        Private helper to tokenize document text and add its ID to the inverted index and term frequencies.
+        Private helper to tokenize document text and add its ID to the inverted index, term frequencies, and document lengths.
         
-        Why it exists: Populates internal inverted index and term frequency state.
-        How it works: Tokenizes input text, updates term_frequencies Counter, and inserts doc_id into self.index.
+        Why it exists: Populates internal inverted index, term frequency, and document length state.
+        How it works: Tokenizes input text, records token count in doc_lengths, updates term_frequencies Counter, and inserts doc_id into self.index.
         """
         # Tokenize incoming document text (title + description)
         tokens = tokenize_text(text)
 
         # Count token occurrences within document and assign Counter to doc_id
         self.term_frequencies[doc_id] = Counter(tokens)
+        # Store total token count for document length normalization calculations
         self.doc_lengths[doc_id] = len(tokens)
 
         # Iterate over each stemmed token generated from the text
@@ -206,33 +207,49 @@ class InvertedIndex:
         bm25_idf = math.log((total_doc_count - term_match_doc_count + 0.5) / (term_match_doc_count + 0.5) + 1)
         return bm25_idf
 
-    def get_bm25_tf(self, doc_id: int, term: str, k1: float = BM25_K1, b: float = BM25_B,) -> float:
+    def get_bm25_tf(self, doc_id: int, term: str, b: float = BM25_B, k1: float = BM25_K1) -> float:
         """
-        Calculates saturated BM25 Term Frequency (TF) score for a document and term.
+        Calculates length-normalized, saturated BM25 Term Frequency (TF) score for a document and term.
 
-        Why it exists: Prevents high raw term counts from disproportionately biasing document relevance ranks.
-        How it works: Retrieves raw term frequency and applies non-linear saturation curve (tf * (k1 + 1)) / (tf + k1).
+        Why it exists: Prevents high raw term counts from disproportionately biasing document relevance ranks
+                       while adjusting scores to penalize long documents and reward concise ones.
+        How it works: Retrieves raw TF, doc length, and corpus average doc length; computes length normalization factor L;
+                       and applies the BM25 TF formula: (tf * (k1 + 1)) / (tf + k1 * L).
         """
         # Retrieve raw integer term occurrence count within the targeted document
         tf = self.get_tf(doc_id, term)
+        # Retrieve total token count for document (defaulting to 0 if missing)
         doc_len = self.doc_lengths.get(doc_id, 0)
+        # Retrieve average document length across entire corpus
         avgdl = self.__get_avg_doc_length()
 
+        # Handle potential zero average document length to prevent division by zero
         if avgdl == 0:
             length_norm = 1.0
-            print(f"doc_len={doc_len}, avgdl={avgdl}, length_norm={length_norm}")
         else:
+            # Compute document length normalization factor L = 1 - b + b * (|D| / avgdl)
             length_norm = 1 - b + b * (doc_len / avgdl)
 
-        # Calculate saturated term frequency score using parameter k1
+        # Compute length-normalized, saturated BM25 term frequency score
         bm25_tf = (tf * (k1 + 1)) / (tf + k1 * length_norm)
         return bm25_tf
 
     def __get_avg_doc_length(self) -> float:
+        """
+        Calculates the average document length (avgdl) across all indexed documents.
+
+        Why it exists: Supplies the baseline document length metric required for BM25 length normalization.
+        How it works: Sums token counts across self.doc_lengths and divides by total document count in self.docmap.
+        """
+        # Determine total number of documents in the index
         total_doc_count = len(self.docmap)
+        # Return 0.0 float directly if corpus contains no documents
         if total_doc_count == 0:
-            return 0
+            return 0.0
+
+        # Sum total token counts across all indexed documents
         summ_doc_length = sum(self.doc_lengths.values())
+        # Divide total tokens by document count to compute average document length
         avgdl = summ_doc_length / total_doc_count
         return avgdl
 
@@ -261,7 +278,7 @@ class InvertedIndex:
         Serializes index structures to disk via pickle.
         
         Why it exists: Persists index state so future search CLI runs skip parsing raw JSON.
-        How it works: Ensures cache directory exists, then binary dumps index, docmap, and term_frequencies.
+        How it works: Ensures cache directory exists, then binary dumps index, docmap, term_frequencies, and doc_lengths.
         """
         # Create 'cache' directory if it doesn't already exist on disk
         os.makedirs("cache", exist_ok=True)
@@ -286,25 +303,31 @@ class InvertedIndex:
         """
         Deserializes index structures from disk via pickle.
         
-        Why it exists: Reconstitutes in-memory index structures rapidly during query execution.
-        How it works: Opens cached .pkl files and unpickles data back into index, docmap, and term_frequencies.
+        Why it exists: Reconstitutes in-memory index structures rapidly during query execution,
+                       with fallback mechanisms to rebuild or reconstruct missing metadata dynamically.
+        How it works: Opens cached .pkl files. If cache files are missing or incomplete, triggers index rebuilding.
         """
-        # Open binary read file handle for cached index
-        with open(INDEX_PATH, "rb") as f:
-            # Unpickle binary data and restore to self.index attribute
-            self.index = pickle.load(f)
-        # Open binary read file handle for cached docmap
-        with open(DOCMAP_PATH, "rb") as f:
-            # Unpickle binary data and restore to self.docmap attribute
-            self.docmap = pickle.load(f)
-        # Open binary read file handle for cached term frequencies
-        with open(TF_PATH, "rb") as f:
-            # Unpickle binary data and restore to self.term_frequencies attribute
-            self.term_frequencies = pickle.load(f)
-        # Open binary read file handle for cached doc lengths
-        with open(DOC_LENGTHS_PATH, "rb") as f:
-            # Unpickle binary data and restore to self.doc_lengths attribute
-            self.doc_lengths = pickle.load(f)
+        try:
+            # Open binary read file handle for cached index
+            with open(INDEX_PATH, "rb") as f:
+                # Unpickle binary data and restore to self.index attribute
+                self.index = pickle.load(f)
+            # Open binary read file handle for cached docmap
+            with open(DOCMAP_PATH, "rb") as f:
+                # Unpickle binary data and restore to self.docmap attribute
+                self.docmap = pickle.load(f)
+            # Open binary read file handle for cached term frequencies
+            with open(TF_PATH, "rb") as f:
+                # Unpickle binary data and restore to self.term_frequencies attribute
+                self.term_frequencies = pickle.load(f)
+            # Open binary read file handle for cached doc lengths
+            with open(DOC_LENGTHS_PATH, "rb") as f:
+                # Unpickle binary data and restore to self.doc_lengths attribute
+                self.doc_lengths = pickle.load(f)
+        except FileNotFoundError:
+            # Rebuild and save index if cache files do not exist or are incomplete
+            self.build()
+            self.save()
 
 
 def build_command() -> None:
@@ -316,7 +339,7 @@ def build_command() -> None:
     """
     # Instantiate new InvertedIndex instance
     idx = InvertedIndex()
-    # Populate inverted index, docmap, and term frequencies from movies.json
+    # Populate inverted index, docmap, term frequencies, and document lengths from movies.json
     idx.build()
     # Persist built index data structures to disk cache
     idx.save()        
@@ -327,23 +350,18 @@ def bm25_tf_command(doc_id: int, term: str, k1: float = BM25_K1, b: float = BM25
     Orchestrates execution for the BM25 Term Frequency CLI workflow.
 
     Why it exists: Decouples business/index logic from raw CLI argument handling.
-    How it works: Hydrates index from disk, normalizes input term, computes saturated BM25 TF, and returns float score.
+    How it works: Hydrates index from disk, normalizes input term, computes length-normalized BM25 TF, and returns float score.
     """
     # Instantiate inverted index container
     idx = InvertedIndex()
-    try:
-        # Hydrate index state from binary disk cache
-        idx.load()
-    except FileNotFoundError:
-        # Print fallback notice if cache does not exist
-        print("Index not found. Please run build first.")
-        return 0.0
+    # Hydrate index state from binary disk cache (automatically rebuilds if cache files are missing)
+    idx.load()
 
     # Tokenize and stem the single keyword term input
     stemmed_term = tokenize_single_term(term)
 
-    # Compute and return saturated BM25 term frequency score
-    return idx.get_bm25_tf(doc_id, stemmed_term, k1, b)
+    # Compute and return length-normalized saturated BM25 term frequency score
+    return idx.get_bm25_tf(doc_id, stemmed_term, b=b, k1=k1)
 
 
 def main() -> None:
@@ -384,13 +402,12 @@ def main() -> None:
     bm25_idf_parser = subparsers.add_parser("bm25idf", help="Get BM25 IDF score for a given term")
     bm25_idf_parser.add_argument("term", type=str, help="Term to get BM25 IDF score for")
 
-    # Register 'bm25tf' subcommand with positional doc_id, term, and optional k1 argument
+    # Register 'bm25tf' subcommand with positional doc_id, term, and optional k1 and b arguments
     bm25_tf_parser = subparsers.add_parser("bm25tf", help="Get BM25 TF score for a given document ID and term")
     bm25_tf_parser.add_argument("doc_id", type=int, help="Document ID")
     bm25_tf_parser.add_argument("term", type=str, help="Term to get BM25 TF score for")
     bm25_tf_parser.add_argument("k1", type=float, nargs="?", default=BM25_K1, help="Tunable BM25 K1 parameter")
     bm25_tf_parser.add_argument("b", type=float, nargs="?", default=BM25_B, help="Tunable BM25 B parameter")
-
 
     # Parse command-line arguments passed at execution time
     args = parser.parse_args()
