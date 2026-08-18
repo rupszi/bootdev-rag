@@ -206,7 +206,7 @@ class InvertedIndex:
         bm25_idf = math.log((total_doc_count - term_match_doc_count + 0.5) / (term_match_doc_count + 0.5) + 1)
         return bm25_idf
 
-    def get_bm25_tf(self, doc_id: int, term: str, k1: float = BM25_K1) -> float:
+    def get_bm25_tf(self, doc_id: int, term: str, b: float = BM25_B, k1: float = BM25_K1) -> float:
         """
         Calculates saturated BM25 Term Frequency (TF) score for a document and term.
 
@@ -215,9 +215,16 @@ class InvertedIndex:
         """
         # Retrieve raw integer term occurrence count within the targeted document
         tf = self.get_tf(doc_id, term)
+        doc_len = self.doc_lengths.get(doc_id, 0)
+        avgdl = self.__get_avg_doc_length()
+
+        if avgdl == 0:
+            length_norm = 1.0
+        else:
+            length_norm = 1 - b + b * (doc_len / avgdl)
 
         # Calculate saturated term frequency score using parameter k1
-        bm25_tf = (tf * (k1 + 1)) / (tf + k1)
+        bm25_tf = (tf * (k1 + 1)) / (tf + k1 * length_norm)
         return bm25_tf
 
     def __get_avg_doc_length(self) -> float:
