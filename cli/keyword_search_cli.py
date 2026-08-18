@@ -31,6 +31,7 @@ BM25_B = 0.75
 CACHE_DIR = "cache"
 
 
+
 def load_movies() -> List[dict]:
     """
     Reads movie dataset from disk.
@@ -281,7 +282,10 @@ class InvertedIndex:
         with open("cache/term_frequencies.pkl", "rb") as f:
             # Unpickle binary data and restore to self.term_frequencies attribute
             self.term_frequencies = pickle.load(f)
-        # Open self
+        # Open binary read file handle for cached doc lengths
+        with open(self.doc_lengths_path, "rb") as f:
+            # Unpickle binary data and restore to self.doc_lengths attribute
+            self.doc_lengths = pickle.load(f)
 
 
 def build_command() -> None:
