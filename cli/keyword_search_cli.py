@@ -250,19 +250,19 @@ class InvertedIndex:
         # Create 'cache' directory if it doesn't already exist on disk
         os.makedirs("cache", exist_ok=True)
         # Open binary write file handle for index serialization
-        with open("cache/index.pkl", "wb") as f:
+        with open(INDEX_PATH, "wb") as f:
             # Pickle dump self.index state to binary file
             pickle.dump(self.index, f)
         # Open binary write file handle for docmap serialization
-        with open("cache/docmap.pkl", "wb") as f:
+        with open(DOCMAP_PATH, "wb") as f:
             # Pickle dump self.docmap state to binary file
             pickle.dump(self.docmap, f)
         # Open binary write file handle for term frequencies serialization
-        with open("cache/term_frequencies.pkl", "wb") as f:
+        with open(TF_PATH, "wb") as f:
             # Pickle dump self.term_frequencies state to binary file
             pickle.dump(self.term_frequencies, f)
         # Open binary write file handle for doc lengths serialization
-        with open(self.doc_lengths_path, "wb") as f:
+        with open(DOC_LENGTHS_PATH, "wb") as f:
             # Pickle dump self.doc_lengths state to binary file
             pickle.dump(self.doc_lengths, f)
 
@@ -274,19 +274,19 @@ class InvertedIndex:
         How it works: Opens cached .pkl files and unpickles data back into index, docmap, and term_frequencies.
         """
         # Open binary read file handle for cached index
-        with open("cache/index.pkl", "rb") as f:
+        with open(INDEX_PATH, "rb") as f:
             # Unpickle binary data and restore to self.index attribute
             self.index = pickle.load(f)
         # Open binary read file handle for cached docmap
-        with open("cache/docmap.pkl", "rb") as f:
+        with open(DOCMAP_PATH, "rb") as f:
             # Unpickle binary data and restore to self.docmap attribute
             self.docmap = pickle.load(f)
         # Open binary read file handle for cached term frequencies
-        with open("cache/term_frequencies.pkl", "rb") as f:
+        with open(TF_PATH, "rb") as f:
             # Unpickle binary data and restore to self.term_frequencies attribute
             self.term_frequencies = pickle.load(f)
         # Open binary read file handle for cached doc lengths
-        with open(self.doc_lengths_path, "rb") as f:
+        with open(DOC_LENGTHS_PATH, "rb") as f:
             # Unpickle binary data and restore to self.doc_lengths attribute
             self.doc_lengths = pickle.load(f)
 
