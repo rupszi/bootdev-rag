@@ -206,7 +206,7 @@ class InvertedIndex:
         bm25_idf = math.log((total_doc_count - term_match_doc_count + 0.5) / (term_match_doc_count + 0.5) + 1)
         return bm25_idf
 
-    def get_bm25_tf(self, doc_id: int, term: str, b: float = BM25_B, k1: float = BM25_K1) -> float:
+    def get_bm25_tf(self, doc_id: int, term: str, k1: float = BM25_K1, b: float = BM25_B,) -> float:
         """
         Calculates saturated BM25 Term Frequency (TF) score for a document and term.
 
@@ -220,6 +220,7 @@ class InvertedIndex:
 
         if avgdl == 0:
             length_norm = 1.0
+            print(f"doc_len={doc_len}, avgdl={avgdl}, length_norm={length_norm}")
         else:
             length_norm = 1 - b + b * (doc_len / avgdl)
 
@@ -321,7 +322,7 @@ def build_command() -> None:
     idx.save()        
 
 
-def bm25_tf_command(doc_id: int, term: str, k1: float = BM25_K1) -> float:
+def bm25_tf_command(doc_id: int, term: str, k1: float = BM25_K1, b: float = BM25_B) -> float:
     """
     Orchestrates execution for the BM25 Term Frequency CLI workflow.
 
@@ -342,7 +343,7 @@ def bm25_tf_command(doc_id: int, term: str, k1: float = BM25_K1) -> float:
     stemmed_term = tokenize_single_term(term)
 
     # Compute and return saturated BM25 term frequency score
-    return idx.get_bm25_tf(doc_id, stemmed_term, k1)
+    return idx.get_bm25_tf(doc_id, stemmed_term, k1, b)
 
 
 def main() -> None:
@@ -388,6 +389,8 @@ def main() -> None:
     bm25_tf_parser.add_argument("doc_id", type=int, help="Document ID")
     bm25_tf_parser.add_argument("term", type=str, help="Term to get BM25 TF score for")
     bm25_tf_parser.add_argument("k1", type=float, nargs="?", default=BM25_K1, help="Tunable BM25 K1 parameter")
+    bm25_tf_parser.add_argument("b", type=float, nargs="?", default=BM25_B, help="Tunable BM25 B parameter")
+
 
     # Parse command-line arguments passed at execution time
     args = parser.parse_args()
@@ -513,7 +516,7 @@ def main() -> None:
 
         case "bm25tf":
             # Delegate to specialized command handler and print output formatted to 2 decimal places
-            bm25tf = bm25_tf_command(args.doc_id, args.term, args.k1)
+            bm25tf = bm25_tf_command(args.doc_id, args.term, args.k1, args.b)
             print(f"BM25 TF score of '{args.term}' in document '{args.doc_id}': {bm25tf:.2f}")
 
         case _:
