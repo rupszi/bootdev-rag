@@ -27,9 +27,12 @@ BM25_K1 = 1.5
 # B is a tunable parameter that controls how much document length affects the score.
 BM25_B = 0.75
 
-# Setting up default cache folder
+# Cache File Paths
 CACHE_DIR = "cache"
-
+INDEX_PATH = os.path.join(CACHE_DIR, "index.pkl")
+DOCMAP_PATH = os.path.join(CACHE_DIR, "docmap.pkl")
+TF_PATH = os.path.join(CACHE_DIR, "term_frequencies.pkl")
+DOC_LENGTHS_PATH = os.path.join(CACHE_DIR, "doc_lengths.pkl")
 
 
 def load_movies() -> List[dict]:
