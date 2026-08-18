@@ -253,6 +253,19 @@ class InvertedIndex:
         avgdl = summ_doc_length / total_doc_count
         return avgdl
 
+    def bm25(self, doc_id: int, term: str) -> float:
+        """
+        Calculates the combined Okapi BM25 score for a document and a single term.
+        
+        Why it exists: Combines non-linear term frequency saturation/length normalization with term rarity weighting.
+        How it works: Multiplies length-normalized BM25 TF by BM25 IDF score.
+        """
+        bm25_tf = self.get_bm25_tf(doc_id, term)
+        bm25_idf = self.get_bm25_idf(term)
+        full_bm25 = bm25_tf * bm25_idf
+        return full_bm25
+
+
     def build(self) -> None:
         """
         Executes complete index construction from raw movie data.
