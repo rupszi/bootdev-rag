@@ -265,6 +265,19 @@ class InvertedIndex:
         full_bm25 = bm25_tf * bm25_idf
         return full_bm25
 
+    def bm25_search(self, query: str, limit: int = 5) -> List[tuple[int, float]]:
+        tokens = tokenize_text(query)
+        scores = {}
+        for doc_id in self.docmap:
+            total_score = 0.0
+            for term in tokens:
+                total_score += self.bm25(doc_id, term)
+
+            if total_score>0:
+                scores[doc_id] = total_score
+        sorted_results = sorted(scores.items(), key = lambda item: item[1], reverse=True)
+        return sorted_results[:limit]
+
 
     def build(self) -> None:
         """
