@@ -1,6 +1,7 @@
 # Import SentenceTransformer from the sentence_transformers library
 # This loads pre-trained transformer models designed to output dense vector embeddings
 from sentence_transformers import SentenceTransformer
+import numpy as np
 
 
 class SemanticSearch:
