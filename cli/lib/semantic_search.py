@@ -17,7 +17,7 @@ class SemanticSearch:
         # Set up empty slots to store our vector grid, raw movies, and quick lookup map
         self.embeddings: np.ndarray | None = None
         self.documents: list[dict] | None = None
-        self.document_map: dict = {}
+        self.document_map: dict = {} 
 
     def generate_embedding(self, text: str) -> np.ndarray:
         """
