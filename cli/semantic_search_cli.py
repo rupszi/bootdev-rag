@@ -1,38 +1,42 @@
 import argparse
-# Import helper functions from local semantic search module
-from lib.semantic_search import embed_text, verify_embeddings, verify_model
+# Import our semantic search module using the 'sems' namespace alias
+import lib.semantic_search as sems
 
 
 def main() -> None:
-    # Initialize the top-level argument parser
+    # Set up argument parser to handle command line inputs
     parser = argparse.ArgumentParser(description="Semantic Search CLI")
-    
-    # Create subparsers for CLI subcommands
+
+    # Add subcommands so the user can type 'verify', 'embed_text', etc.
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # Subcommand: 'verify'
+    # Command 1: 'verify' - Checks model architecture
     subparsers.add_parser("verify", help="Verify model loading and sequence length")
 
-    # Subcommand: 'embed_text'
+    # Command 2: 'embed_text' - Converts a single user string into a vector
     embed_parser = subparsers.add_parser("embed_text", help="Embed the provided text.")
-    embed_parser.add_argument("text", type=str, help="The text string to generate an embedding for")
+    embed_parser.add_argument(
+        "text", type=str, help="The text string to generate a vector embedding for"
+    )
 
-    # Subcommand: 'verify_embeddings'
-    subparsers.add_parser("verify_embeddings", help="Verify document embeddings matrix shape")
+    # Command 3: 'verify_embeddings' - Builds or loads vectors for all movies
+    subparsers.add_parser(
+        "verify_embeddings", help="Verify document embeddings matrix shape"
+    )
 
-    # Parse CLI arguments
+    # Read user input from terminal arguments
     args = parser.parse_args()
 
-    # Route execution based on parsed command
+    # Match user command to the corresponding library function
     match args.command:
         case "verify":
-            verify_model()
+            sems.verify_model()
 
         case "embed_text":
-            embed_text(args.text)
+            sems.embed_text(args.text)
 
         case "verify_embeddings":
-            verify_embeddings()
+            sems.verify_embeddings()
 
         case _:
             parser.print_help()
