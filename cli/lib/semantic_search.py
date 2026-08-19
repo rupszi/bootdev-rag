@@ -17,7 +17,7 @@ class SemanticSearch:
         # Set up empty slots to store our vector grid, raw movies, and quick lookup map
         self.embeddings: np.ndarray | None = None
         self.documents: list[dict] | None = None
-        self.document_map: dict = {} 
+        self.document_map: dict = {}
 
     def generate_embedding(self, text: str) -> np.ndarray:
         """
@@ -122,4 +122,22 @@ def verify_embeddings() -> None:
 
     # Output total count of movies and dimensionality (e.g. 5000 vectors in 384 dimensions)
     print(f"Number of docs:   {len(documents)}")
-    print(f"Embeddings shape: {embeddings.shape[0]} vectors in {embeddings.shape[1]} dimensions")
+    print(
+        f"Embeddings shape: {embeddings.shape[0]} vectors in {embeddings.shape[1]} dimensions"
+    )
+
+
+def embed_query_text(query: str) -> None:
+    """
+    Converts a search query into a vector embedding and prints debug metadata.
+    """
+    # Instantiate search engine helper to access the loaded AI model
+    srch = SemanticSearch()
+
+    # Generate vector (384 floats) for the user's raw query string
+    embedding = srch.generate_embedding(query)
+
+    # Print input query alongside vector inspection details
+    print(f"Query: {query}")
+    print(f"First 3 dimensions: {embedding[:3]}")
+    print(f"Shape: {embedding.shape}")
