@@ -1,43 +1,40 @@
 import argparse
-# Import helper functions from the local semantic search library module
-from lib.semantic_search import embed_text, verify_model, verify_embeddings
+# Import helper functions from local semantic search module
+from lib.semantic_search import embed_text, verify_embeddings, verify_model
 
 
 def main() -> None:
-    # Initialize the top-level argument parser for the Semantic Search CLI
+    # Initialize the top-level argument parser
     parser = argparse.ArgumentParser(description="Semantic Search CLI")
     
-    # Create subparsers to handle distinct subcommands (e.g., 'verify', 'embed_text')
+    # Create subparsers for CLI subcommands
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # Subcommand: 'verify' (requires no additional arguments)
+    # Subcommand: 'verify'
     subparsers.add_parser("verify", help="Verify model loading and sequence length")
 
-    # Subcommand: 'embed_text' (requires one positional string argument)
+    # Subcommand: 'embed_text'
     embed_parser = subparsers.add_parser("embed_text", help="Embed the provided text.")
-    # Define positional argument 'text' so argparse captures trailing string inputs
-    embed_parser.add_argument("text", type=str, help="The text string to generate a vector embedding for")
+    embed_parser.add_argument("text", type=str, help="The text string to generate an embedding for")
 
-    # Subcommand: 'verify_embeddings' (requires no additional arguments)
-    subparsers.add_parser("verify_embeddings", help="Verify embeddings")
+    # Subcommand: 'verify_embeddings'
+    subparsers.add_parser("verify_embeddings", help="Verify document embeddings matrix shape")
 
-    # Parse command-line arguments passed at execution time
+    # Parse CLI arguments
     args = parser.parse_args()
 
-    # Route execution based on the chosen subcommand
+    # Route execution based on parsed command
     match args.command:
         case "verify":
             verify_model()
 
         case "embed_text":
-            # Pass the parsed positional 'text' argument to embed_text
             embed_text(args.text)
 
         case "verify_embeddings":
             verify_embeddings()
 
         case _:
-            # Print help text if no valid subcommand is provided
             parser.print_help()
 
 
