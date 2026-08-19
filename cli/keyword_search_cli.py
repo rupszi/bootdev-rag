@@ -56,7 +56,7 @@ def tokenize_single_term(term: str) -> str:
     Tokenizes and stems a single term input.
 
     Why it exists: Ensures single keyword CLI inputs (e.g., for TF/IDF) undergo 
-                   identical normalization as document text while validating input count.
+    identical normalization as document text while validating input count.
     How it works: Passes text to tokenize_text and enforces that exactly one token is returned.
     """
     # Tokenize input using standard preprocessing pipeline
