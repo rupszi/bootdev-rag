@@ -32,6 +32,16 @@ class SemanticSearch:
         # Return index 0 to retrieve the 1D NumPy array for the single input text
         return embedding[0]
 
+    def build_embeddings(self, documents: list[dict]) -> None:
+        """
+        Extracts searchable text from a list of document dictionaries, generates 
+        vector embeddings in a batch, and constructs an in-memory document map.
+        """
+        self.documents = documents
+
+        self.document_map = {i["id"]: i for i in documents}
+
+
 
 def verify_model() -> None:
     """
