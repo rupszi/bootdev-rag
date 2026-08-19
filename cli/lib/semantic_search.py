@@ -13,6 +13,9 @@ class SemanticSearch:
         # Load the 'all-MiniLM-L6-v2' model into memory.
         # This model produces 384-dimensional dense vectors and runs locally.
         self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        self.embeddings = None
+        self.documents = None
+        self.document_map = {}
 
     def generate_embedding(self, text: str):
         """
