@@ -2,6 +2,9 @@
 # This loads pre-trained transformer models designed to output dense vector embeddings
 from sentence_transformers import SentenceTransformer
 import numpy as np
+import os
+import json
+
 
 
 class SemanticSearch:
@@ -31,6 +34,7 @@ class SemanticSearch:
 
         # Return index 0 to retrieve the 1D NumPy array for the single input text
         return embedding[0]
+    
 
     def build_embeddings(self, documents: list[dict]) -> None:
         """
@@ -40,6 +44,27 @@ class SemanticSearch:
         self.documents = documents
 
         self.document_map = {i["id"]: i for i in documents}
+
+        # Create an empty list to collect the formatted strings
+        # 1. Access the specific keys in the current movie dictionary
+        # 2. Append the string to your collection lis
+        movie_strings = [f"{doc['title']}: {doc['description']}" for doc in documents]
+        self.embeddings = self.model.encode(movie_strings, show_progress_bar=True)
+        np.save("cache/movie_embeddings.npy", self.embeddings)
+        
+        return self.embeddings
+    
+
+    def load_or_create_embeddings(self, documents):
+        self.documents = documents
+        self.document_map = {i["id"]: i for i in documents}
+
+        if os.path.exists("cache/movie_embeddings.npy"): 
+            self.embeddings = np.load("cache/movie_embeddings.npy")
+            if len(self.embeddings) == len(documents):
+                return self.embeddings
+
+        return self.build_embeddings(documents)
 
 
 
@@ -75,3 +100,27 @@ def embed_text(text: str) -> None:
 
     # Print total dimensionality using the .shape property of the NumPy array (384)
     print(f"Dimensions: {embedding.shape[0]}")
+
+def verify_embeddings() -> None:
+    """
+    Loads movie documents from JSON, initializes/loads vector embeddings, 
+    and verifies document counts and array dimensionality.
+    """
+    # Instantiate the semantic search engine
+    srch = SemanticSearch()
+
+    # Open and parse the JSON dataset
+    with open("data/movies.json", "r") as f:
+        movies_data = json.load(f)
+        
+    # Extract the underlying list of movie dictionaries
+    documents = movies_data["movies"]
+
+    # Load from disk cache or build new embeddings using the documents list
+    embeddings = srch.load_or_create_embeddings(documents)
+
+    # Output document count and embedding matrix shape to match Boot.dev assertions
+    print(f"Number of docs:   {len(documents)}")
+    print(
+        f"Embeddings shape: {embeddings.shape[0]} vectors in {embeddings.shape[1]} dimensions"
+    )

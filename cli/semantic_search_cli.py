@@ -1,6 +1,6 @@
 import argparse
 # Import helper functions from the local semantic search library module
-from lib.semantic_search import embed_text, verify_model
+from lib.semantic_search import embed_text, verify_model, verify_embeddings
 
 
 def main() -> None:
@@ -15,13 +15,11 @@ def main() -> None:
 
     # Subcommand: 'embed_text' (requires one positional string argument)
     embed_parser = subparsers.add_parser("embed_text", help="Embed the provided text.")
-    
     # Define positional argument 'text' so argparse captures trailing string inputs
-    embed_parser.add_argument(
-        "text", 
-        type=str, 
-        help="The text string to generate a vector embedding for"
-    )
+    embed_parser.add_argument("text", type=str, help="The text string to generate a vector embedding for")
+
+    # Subcommand: 'verify_embeddings' (requires no additional arguments)
+    subparsers.add_parser("verify_embeddings", help="Verify embeddings")
 
     # Parse command-line arguments passed at execution time
     args = parser.parse_args()
@@ -34,6 +32,9 @@ def main() -> None:
         case "embed_text":
             # Pass the parsed positional 'text' argument to embed_text
             embed_text(args.text)
+
+        case "verify_embeddings":
+            verify_embeddings()
 
         case _:
             # Print help text if no valid subcommand is provided
