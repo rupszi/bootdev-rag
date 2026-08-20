@@ -34,6 +34,20 @@ def main() -> None:
         "query", type=str, help="The text string to generate a vector embedding for"
     )
 
+    # Command 5: 'search' - Compares the user's query vector against document vectors
+    search_parser = subparsers.add_parser("search", help="Search movies semantically")
+
+    # Required positional argument for the search phrase
+    search_parser.add_argument("query", type=str, help="Search query string")
+
+    # Optional flag to restrict maximum returned results (defaults to 5)
+    search_parser.add_argument(
+        "--limit",
+        type=int,
+        default=5,
+        help="Number of results to return (default: 5)",
+    )
+
     # Read user input from terminal arguments
     args = parser.parse_args()
 
@@ -50,6 +64,10 @@ def main() -> None:
 
         case "embed_query":
             sems.embed_query_text(args.query)
+
+        case "search":
+            # Pass terminal query and optional limit into the search CLI driver wrapper
+            sems.search_cli(args.query, args.limit)
 
         case _:
             parser.print_help()

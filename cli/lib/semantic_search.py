@@ -76,25 +76,47 @@ class SemanticSearch:
         # If cache is missing or out of date, compute vectors from scratch
         return self.build_embeddings(documents)
 
-    def search(self, query, limit):
+    def search(self, query: str, limit: int = 5) -> list[dict]:
+        """
+        Calculates similarity scores between a search query and all loaded documents,
+        returning the top 'limit' closest semantic matches.
+        """
+        # Guard clause: ensure vector cache and document texts exist before searching
         if self.embeddings is None or self.documents is None:
-            raise ValueError("No embeddings loaded. Call `load_or_create_embeddings` first.")
-        
+            raise ValueError(
+                "No embeddings loaded. Call `load_or_create_embeddings` first."
+            )
+
+        # Convert user's raw string search query into a 384-dimensional vector
         embedding = self.generate_embedding(query)
 
+        # Initialize accumulator list to store scored result dictionaries
         result_list = []
 
+        # Iterate through every document and its matching row vector in self.embeddings
         for i in range(len(self.documents)):
             doc_dict = self.documents[i]
             doc_vect = self.embeddings[i]
 
+            # Calculate mathematical similarity between query vector and movie vector
             score = cosine_similarity(embedding, doc_vect)
-            result_item = {"score": float(score), "title": doc_dict["title"], "description": doc_dict["description"]}
+
+            # Construct result item containing similarity score and movie details
+            result_item = {
+                "score": float(score),
+                "title": doc_dict["title"],
+                "description": doc_dict["description"],
+            }
 
             result_list.append(result_item)
 
-        sorted(result_list, key = lambda x: x["score"], reverse=True)
-        return result_list[:limit]
+        # Sort all results by 'score' in descending order (highest score first)
+        sorted_results = sorted(
+            result_list, key=lambda x: x["score"], reverse=True
+        )
+
+        # Return only the top N results based on the requested limit
+        return sorted_results[:limit]
 
 
 def verify_model() -> None:
@@ -162,13 +184,44 @@ def embed_query_text(query: str) -> None:
     print(f"First 3 dimensions: {embedding[:3]}")
     print(f"Shape: {embedding.shape}")
 
+
 def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
+    """
+    Computes the cosine similarity (angle) between two 1D numerical vectors.
+    """
+    # Calculate dot product (sum of element-wise multiplication)
     dot_product = np.dot(vec1, vec2)
+
+    # Calculate Euclidean lengths (magnitudes) of both vectors
     norm1 = np.linalg.norm(vec1)
     norm2 = np.linalg.norm(vec2)
 
+    # Prevent division by zero if either vector is completely empty/zeroed out
     if norm1 == 0 or norm2 == 0:
         return 0.0
 
-    return dot_product / (norm1 * norm2)
+    # Cosine formula: dot_product divided by product of magnitudes
+    return float(dot_product / (norm1 * norm2))
 
+
+def search_cli(query: str, limit: int = 5) -> None:
+    """
+    CLI DRIVER: Loads JSON dataset, performs semantic search, and prints formatted results.
+    """
+    # Instantiate search engine helper
+    srch = SemanticSearch()
+
+    # Load raw JSON movie dataset from disk
+    with open("data/movies.json", "r") as f:
+        movies_data = json.load(f)
+
+    # Load pre-computed vector grid or build it if missing
+    srch.load_or_create_embeddings(movies_data["movies"])
+
+    # Execute search algorithm to obtain top matches
+    results = srch.search(query, limit)
+
+    # Loop over search results and format standard output for CLI display
+    for i, res in enumerate(results, start=1):
+        print(f"{i}. {res['title']} (score: {res['score']:.4f})")
+        print(f"  {res['description'][:100]}...\n")
