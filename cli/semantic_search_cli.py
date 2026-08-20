@@ -48,6 +48,20 @@ def main() -> None:
         help="Number of results to return (default: 5)",
     )
 
+    # Command 6: 'chunk' - Splits text into fixed word-size chunks
+    chunk_parser = subparsers.add_parser("chunk", help="Chunk documents")
+
+    # Required positional argument: text string to chunk
+    chunk_parser.add_argument("text", type=str, help="Chunk string")
+
+    # Optional flag to set words per chunk (defaults to 200)
+    chunk_parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=200,
+        help="Number of words per chunk (default: 200)",
+    )
+
     # Read user input from terminal arguments
     args = parser.parse_args()
 
@@ -68,6 +82,10 @@ def main() -> None:
         case "search":
             # Pass terminal query and optional limit into the search CLI driver wrapper
             sems.search_cli(args.query, args.limit)
+
+        case "chunk":
+            # Pass text and chunk_size parameter to sems.chunk
+            sems.chunk(args.text, args.chunk_size)
 
         case _:
             parser.print_help()

@@ -119,6 +119,8 @@ class SemanticSearch:
         return sorted_results[:limit]
 
 
+
+
 def verify_model() -> None:
     """
     Prints basic information about the loaded AI model.
@@ -225,3 +227,26 @@ def search_cli(query: str, limit: int = 5) -> None:
     for i, res in enumerate(results, start=1):
         print(f"{i}. {res['title']} (score: {res['score']:.4f})")
         print(f"  {res['description'][:100]}...\n")
+
+
+def chunk(text: str, chunk_size: int = 200) -> None:
+    """
+    Splits text into words on whitespace and groups them into chunks of size `chunk_size`.
+    Prints total character count and each chunk with 1-based indexing.
+    """
+    # Split text on whitespace to get all individual words
+    words = text.split()
+
+    chunks = []
+    # Step through words list in steps of chunk_size
+    for i in range(0, len(words), chunk_size):
+        # Slice word list and re-join with single spaces
+        chunk_words = words[i : i + chunk_size]
+        chunks.append(" ".join(chunk_words))
+
+    # Print total character length of the original input string
+    print(f"Chunking {len(text)} characters")
+
+    # Print numbered chunks starting at index 1
+    for i, chunk_str in enumerate(chunks, start=1):
+        print(f"{i}. {chunk_str}")
