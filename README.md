@@ -1,178 +1,321 @@
-Here is an expanded, non-technical-friendly README designed to make the engine's purpose, importance, and technical mechanics crystal clear to both technical developers and non-technical stakeholders alike.
-Fast Keyword Search Engine in Python
+# Advanced Search Engine: Inverted Index & Semantic Vector Retrieval in Python
 
-A lightweight, high-performance Inverted Index Search Engine built from scratch in Python. It transforms unstructured document datasets (like movie catalogs) into a lightning-fast, structured index—allowing you to search thousands of documents instantly without scanning through them line by line.
-💡 What Is This Project? (Plain English Version)
+A high-performance, hybrid search engine CLI platform built from scratch in Python. The system provides two complementary retrieval architectures:
 
-Imagine you are looking for a specific topic in a 1,000-page encyclopedia.
+1. **Fast Keyword Inverted Index Engine:** A fast lexical search engine utilizing text normalization, stem reduction, postings lists, term-frequency matrix tracking, and TF-IDF relevance metrics.
+2. **Dense Vector Semantic Engine:** A neural semantic search engine powered by `sentence-transformers` (`all-MiniLM-L6-v2`) and `numpy` matrix calculations, featuring fixed-size word sliding-window chunking and sentence-boundary regex semantic chunking with overlap context preservation.
 
-    The Slow Way (Linear Scan): You open to page 1 and read every single word on every page until you find what you are looking for. If the book is huge, this takes forever.
+---
 
-    The Smart Way (Inverted Index): You flip directly to the index at the back of the book. You look up your word alphabetically, see a list of exact page numbers where that word appears, and turn directly to those pages.
+## 💡 System Overview: Why Dual-Engine Architecture?
 
-This Python program builds that exact "index at the back of the book" for digital computer files.
+Modern information retrieval systems face a fundamental trade-off between **lexical exactness** and **conceptual understanding**:
 
-Instead of reading through thousands of movie titles and descriptions every time you type a query, this tool reads the entire database once, builds a master map of every word and where it lives, and saves that map to disk. When you search, it jumps directly to the matching results in a fraction of a millisecond.
-🎯 Why Is This Important?
+```
+                              ┌───────────────────────────────────────────────┐
+                              │            RAW QUERY / DOCUMENT               │
+                              └──────────────────────┬────────────────────────┘
+                                                     │
+                   ┌─────────────────────────────────┴─────────────────────────────────┐
+                   ▼                                                                   ▼
+    ┌─────────────────────────────┐                                     ┌─────────────────────────────┐
+    │   LEXICAL INVERTED INDEX    │                                     │    DENSE VECTOR SEMANTIC    │
+    │  (Keyword-exact matching)   │                                     │   (Neural Vibe/Context)     │
+    └──────────────┬──────────────┘                                     └──────────────┬──────────────┘
+                   │                                                                   │
+    • Tokenize, Stopwords, Stemming                                     • SentenceTransformer Model
+    • Postings Maps: Term -> Set[DocID]                                 • 384-Dimensional Embeddings
+    • Fast O(1) Set Intersections                                       • Cosine Similarity Dot Product
+    • Exact Model Numbers / Names                                       • Conceptual / Synonymous Queries
 
-In the modern digital world, data grows exponentially every day. Understanding why index-based search matters comes down to three key reasons:
-1. Speed and Scalability
+```
 
-If you search 1,000 movies by checking each one sequentially, it takes a few milliseconds. But if you try to search 10,000,000 documents using that same sequential approach, your search will crash or take minutes to return a result. Building an inverted index shifts all the heavy processing work to a single "prep step" so that end-user searches remain instant, regardless of dataset size.
-2. Smart Language Matching (It Understands Word Roots)
+* **The Lexical Approach (Inverted Index):** Outstanding at finding exact strings, product IDs, rare proper nouns, and specific codes. However, if a user queries "feline," a purely lexical system fails if the document only contains "cat."
+* **The Dense Semantic Approach (Vector Search):** Transforms text into continuous 384-dimensional vector spaces. It understands that "spacecraft" and "spaceship" occupy nearly identical vector coordinates.
+* **Text Chunking Pipeline:** Addresses the transformer model sequence length bottleneck ($N_{\text{max}} = 256$ tokens) by partitioning long text documents into overlapping fixed-word or sentence-level segments without losing context at boundaries.
 
-Computers are notoriously literal. Normally, if a movie description says "The hero fought bravely" and you search for "brave", a basic search engine won't find it because the words are spelled differently.
+---
 
-This search engine includes a Text Normalization Pipeline that cleans up human language. It reduces words down to their root stems (bravely → brav, running → run), ensuring you find relevant results even if you don't type the exact grammatical variation.
-3. Measuring Relevance (TF-IDF Scoring)
+## 🏗 System Architecture & End-to-End Pipeline
 
-Not all words are created equal. Words like "the", "is", or "and" appear thousands of times but tell us nothing about what a movie is about. On the other hand, a rare word like "galaxy" or "dinosaur" carries heavy meaning.
+```
+                                    ┌──────────────────────────────────────┐
+                                    │      RAW DATASETS & DOCUMENTS        │
+                                    │ data/movies.json + data/stopwords.txt│
+                                    └──────────────────┬───────────────────┘
+                                                       │
+                   ┌───────────────────────────────────┴───────────────────────────────────┐
+                   │                                                                       │
+                   ▼                                                                       ▼
+    ┌─────────────────────────────┐                                         ┌─────────────────────────────┐
+    │  TEXT NORMALIZATION ENGINE  │                                         │      CHUNKING PIPELINE      │
+    ├─────────────────────────────┤                                         ├─────────────────────────────┤
+    │ 1. Lowercase Folding        │                                         │ 1. Fixed Word Sliding Window│
+    │ 2. Punctuation Strip        │                                         │ 2. Regex Sentence Splitter  │
+    │ 3. Stopword Filtering       │                                         │ 3. Overlap Stride Control   │
+    │ 4. Porter Stemmer Roots     │                                         └──────────────┬──────────────┘
+    └──────────────┬──────────────┘                                                        │
+                   │                                                                       │
+                   ▼                                                                       ▼
+    ┌─────────────────────────────┐                                         ┌─────────────────────────────┐
+    │    INVERTED INDEX STORE     │                                         │   DENSE VECTOR EMBEDDINGS   │
+    ├─────────────────────────────┤                                         ├─────────────────────────────┤
+    │ • Postings: Term -> Set     │                                         │ • all-MiniLM-L6-v2 Encoder  │
+    │ • Term Frequency Matrix     │                                         │ • Matrix: N x 384 Float32   │
+    │ • TF-IDF Metric Computation │                                         │ • Disk Cache: *.npy Vector  │
+    │ • Pickle Persistence (.pkl) │                                         └──────────────┬──────────────┘
+    └──────────────┬──────────────┘                                                        │
+                   │                                                                       │
+                   └───────────────────────────────────┬───────────────────────────────────┘
+                                                       │
+                                                       ▼
+                                    ┌──────────────────────────────────────┐
+                                    │         CLI SEARCH DRIVER            │
+                                    │ keyword_search_cli | semantic_search │
+                                    └──────────────────────────────────────┘
 
-This engine implements TF-IDF (Term Frequency-Inverse Document Frequency) math to calculate how important a word is to a specific document relative to the rest of the collection, laying the foundation for modern relevance ranking.
-🏗 System Architecture
+```
 
-                       ┌──────────────────────────────────────┐
-                       │    RAW DATA INGESTION & PARSING      │
-                       │  movies.json  +  stopwords.txt       │
-                       └──────────────────┬───────────────────┘
-                                          │
-                                          ▼
-                       ┌──────────────────────────────────────┐
-                       │   TEXT NORMALIZATION & TOKENIZATION  │
-                       │ Strip Punctuation -> Lowercase       │
-                       │ Drop Stopwords    -> Stem Roots      │
-                       └──────────────────┬───────────────────┘
-                                          │
-                                          ▼
-                       ┌──────────────────────────────────────┐
-                       │    BUILD INVERTED INDEX & PERSIST    │
-                       │ Term -> Set[Doc IDs] & Doc ID Map    │
-                       │ Serialized to cache/*.pkl via Pickle │
-                       └──────────────────┬───────────────────┘
-                                          │
-                                          ▼
-                       ┌──────────────────────────────────────┐
-                       │         CLI SEARCH EXECUTION         │
-                       │ Load cache/*.pkl -> Normalize Query  │
-                       │ O(1) Set Lookup -> Calculate TF-IDF  │
-                       └──────────────────────────────────────┘
+---
 
-🛠 Architectural Walkthrough (How It Works Under the Hood)
-1. Text Normalization Pipeline (tokenize_text)
+## 🛠 In-Depth Architectural Components
 
-Before any text is indexed or searched, it passes through four cleanup stages:
+### 1. Lexical Keyword Inverted Index (`cli/lib/keyword_search.py`)
 
-Raw Input:  "The brave knight fought bravely!"
-  ├── 1. Case Fold:   "the brave knight fought bravely!"
-  ├── 2. Strip Punc:  "the brave knight fought bravely"
-  ├── 3. Filter Stop: ["brave", "knight", "fought", "bravely"]   (removes common noise words)
-  └── 4. Stem Roots:  ["brav", "knight", "fought", "brav"]     (PorterStemmer root reduction)
+#### Text Normalization Pipeline
 
-2. Primary Data Structures (InvertedIndex)
+Before text enters the postings index, it undergoes deterministic transformation:
 
-The engine keeps track of documents using three specialized dictionary structures:
+1. **Lowercasing:** Converts strings to lowercase to enforce case-insensitive matching.
+2. **Punctuation Stripping:** Removes non-alphanumeric noise using string translation tables.
+3. **Stopword Filtering:** Eliminates high-frequency, low-information tokens (e.g., `"the"`, `"and"`, `"is"`) provided in `data/stopwords.txt`.
+4. **Porter Stemming:** Reduces inflectional word variants down to unified root stems (e.g., `"running"`, `"ran"`, `"runs"` $\rightarrow$ `"run"`).
 
-    Postings Index (self.index): Maps stemmed words directly to the set of document IDs containing them.
-    Python
+#### Primary Memory Structures
 
-    {
-        "brav": {2054, 2577, 4101, 4104},
-        "space": {101, 402, 988},
-        "knight": {2054, 8812}
-    }
+* **Postings List (`self.index`):** A dictionary mapping stemmed terms directly to a Python `set` of document IDs:
+```python
+{
+    "brav": {2054, 2577, 4101},
+    "space": {101, 402, 988}
+}
 
-    Document Map (self.docmap): Maps unique document IDs back to the original full movie records so titles and descriptions can be displayed instantly.
-    Python
+```
 
-    {
-        2054: {"id": 2054, "title": "Mohawk", "description": "A brave warrior..."},
-        4101: {"id": 4101, "title": "Tuck Everlasting", "description": "A story about..."}
-    }
 
-    Term Frequency Tracking (self.term_frequencies): Remembers how many times each word appears inside each specific document for scoring calculations.
+* **Document Map (`self.docmap`):** An $O(1)$ lookup mapping document IDs back to their full JSON metadata records.
+* **Term Frequencies (`self.term_frequencies`):** Nested mapping tracking term occurrences per document: `dict[int, dict[str, int]]`.
 
-3. Disk Serialization & Caching
+#### TF-IDF Mathematical Scoring
 
-    build Phase: Reads the raw JSON files, processes all text, constructs the inverted index in memory, and saves binary cache snapshots (cache/*.pkl) using Python's pickle module.
+To rank relevance, the system calculates the Term Frequency-Inverse Document Frequency weight:
 
-    search / Metric Phase: Reads the tiny binary cache files directly into memory in milliseconds, bypassing the need to re-read or re-parse the raw dataset ever again.
+$$\text{TF}(t, d) = \frac{f_{t,d}}{\sum_{t' \in d} f_{t',d}}$$
 
-🚦 Where Are We Now? (Current Project Status)
+$$\text{IDF}(t, D) = \log_e \left( \frac{\vert{}D\vert{}}{\vert{}\{d \in D : t \in d\}\vert{}} \right)$$
 
-The core search engine, storage pipeline, and statistical scoring features are fully built and working.
-🌟 Implemented Features
+$$\text{TF-IDF}(t, d, D) = \text{TF}(t, d) \times \text{IDF}(t, D)$$
 
-    ✅ Full text cleaning, stop-word removal, and word stemming.
+---
 
-    ✅ Instant single and multi-term keyword search lookup.
+### 2. Dense Semantic Vector Search (`cli/lib/semantic_search.py`)
 
-    ✅ Persistent disk caching via binary pickle snapshots.
+#### Vector Embedding Generation
 
-    ✅ Term Frequency (TF) tracking per document.
+Utilizes the `all-MiniLM-L6-v2` SentenceTransformer architecture to project input text into a high-dimensional vector space ($\mathbb{R}^{384}$).
 
-    ✅ Inverse Document Frequency (IDF) calculation across the entire corpus.
+* Input sentences are converted to dense floating-point vector arrays.
+* Pre-computed embeddings are serialized to disk as uncompressed NumPy matrix caches (`cache/movie_embeddings.npy`) to ensure instant cold-start execution.
 
-    ✅ TF-IDF metric calculation for individual document-term pairs.
+#### Vector Similarity Metric (Cosine Similarity)
 
-📖 Usage Guide & CLI Commands
-Installation & Environment Setup
+Determines the angular proximity between two $n$-dimensional vectors $\mathbf{u}$ and $\mathbf{v}$, independent of magnitude:
 
-Ensure uv is installed, then sync project dependencies:
-Bash
+$$\text{Cosine Similarity}(\mathbf{u}, \mathbf{v}) = \frac{\mathbf{u} \cdot \mathbf{v}}{\Vert{}\mathbf{u}\Vert{}_2 \Vert{}\mathbf{v}\Vert{}_2} = \frac{\sum_{i=1}^{n} u_i v_i}{\sqrt{\sum_{i=1}^{n} u_i^2} \sqrt{\sum_{i=1}^{n} v_i^2}}$$
 
+When a query vector is computed, the engine calculates cosine similarity against all document row vectors in the cached embedding matrix, returning the top $N$ closest semantic matches ranked by descending score.
+
+---
+
+### 3. Document Chunking Engine
+
+Long-form documents exceed vector context windows and obscure granular details. The library provides two distinct chunking strategies to break down text while preserving context through sliding window overlaps.
+
+```
+SLIDING WINDOW CHUNKING WITH OVERLAP (chunk_size=4, overlap=2, stride=2):
+
+Words:   [ W1   W2   W3   W4 ]  W5   W6   W7   W8
+         └────── Chunk 1 ─────┘
+                     [ W3   W4   W5   W6 ]
+                     └────── Chunk 2 ─────┘
+                                 [ W5   W6   W7   W8 ]
+                                 └────── Chunk 3 ─────┘
+                                 ▲───────▲ Overlap Region
+
+```
+
+#### Strategy A: Fixed-Word Window Chunking (`chunk`)
+
+Splits text into words on whitespace and slides a window defined by `chunk_size` and `overlap`.
+
+* **Stride Calculation:** $\text{stride} = \text{chunk\_size} - \text{overlap}$
+* **Pointer Loop:** Advances pointer $i$ by $\text{stride}$ on each step.
+* **Termination Rule:** Halts when $i + \text{chunk\_size} \ge N_{\text{words}}$ to prevent duplicate tail slices.
+
+#### Strategy B: Semantic Sentence Boundary Chunking (`semantic_chunk`)
+
+Preserves natural grammatical boundary structures instead of cutting words arbitrarily mid-thought.
+
+* **Regex Sentence Splitter:** `r"(?<=[.!?])\s+"`
+Uses a *positive lookbehind* `(?<=[.!?])` to match whitespace `\s+` immediately following a period, exclamation point, or question mark. This splits text at sentence boundaries without stripping terminal punctuation from sentence strings.
+* **Sentence Windowing:** Groups up to `max_chunk_size` sentences into a unified chunk string with `overlap` sentence retention between successive chunks.
+
+---
+
+## 🛠 Environment Setup & Installation
+
+Ensure `uv` is installed on your machine. Sync dependencies from the project root:
+
+```bash
 uv sync
 
-1. Build the Index
+```
 
-Parse raw input datasets (data/movies.json) and generate binary cache files in cache/:
-Bash
+---
 
+## 📖 CLI Operations & Usage Guide
+
+The project exposes two CLI interfaces: `keyword_search_cli.py` for lexical inverted index operations and `semantic_search_cli.py` for vector semantic operations and chunking.
+
+### Section A: Keyword Inverted Index Engine
+
+#### 1. Build the Inverted Index Cache
+
+Parses raw datasets (`data/movies.json`), processes text normalization, and serializes index state to `cache/*.pkl`:
+
+```bash
 uv run cli/keyword_search_cli.py build
 
-2. Search for Movies
+```
 
-Run keyword queries against the pre-built index:
-Bash
+#### 2. Search Keyword Index
 
+Runs an instant lexical query over the pre-built postings index:
+
+```bash
 uv run cli/keyword_search_cli.py search "brave warrior"
 
-Sample Output:
-Plaintext
+```
 
-Searching for: brave warrior
-1. Mohawk, (ID: 2054)
-2. Dark Passage, (ID: 2577)
-3. Tuck Everlasting, (ID: 4101)
-4. Shake, Rattle & Roll, (ID: 4104)
-5. How to Steal a Million, (ID: 2065)
+#### 3. Compute Term Frequency (TF)
 
-3. Calculate Term Frequency (TF)
+Displays how many times a normalized stem term appears within a specific document ID:
 
-Find how many times a word appears in a specific document:
-Bash
-
+```bash
 uv run cli/keyword_search_cli.py tf 2054 "brave"
 
-4. Calculate Inverse Document Frequency (IDF)
+```
 
-Measure how rare or informative a word is across all documents:
-Bash
+#### 4. Compute Inverse Document Frequency (IDF)
 
+Calculates the global rarity weight of a term across the entire corpus:
+
+```bash
 uv run cli/keyword_search_cli.py idf "galaxy"
 
-5. Calculate TF-IDF Score
+```
 
-Determine the exact mathematical relevance of a keyword to a specific document:
-Bash
+#### 5. Calculate Full TF-IDF Metric
 
+Computes the exact mathematical TF-IDF score for a document-term pair:
+
+```bash
 uv run cli/keyword_search_cli.py tfidf 2054 "brave"
 
-🚀 Roadmap & Next Steps
+```
 
-    [ ] Ranked Search Results: Automatically sort multi-term search outputs by descending TF-IDF score rather than numerical document ID.
+---
 
-    [ ] BM25 Algorithm: Upgrade from basic TF-IDF to Okapi BM25 for advanced industrial search ranking.
+### Section B: Dense Vector Semantic Engine & Chunking
 
-    [ ] Boolean Search Support: Support logical operators like AND, OR, and NOT (e.g., space AND NOT alien).
+#### 1. Verify SentenceTransformer Model Architecture
 
-    [ ] Positional Indexing: Store word position coordinates to support exact phrase matching (e.g., "star wars").
+Inspects model dimensions and sequence length constraints:
+
+```bash
+uv run cli/semantic_search_cli.py verify
+
+```
+
+#### 2. Verify Document Embeddings Matrix
+
+Loads or builds vector matrix cache for the movie dataset and displays shape metadata:
+
+```bash
+uv run cli/semantic_search_cli.py verify_embeddings
+
+```
+
+#### 3. Perform Vector Semantic Search
+
+Executes a dense vector similarity query, matching meaning rather than exact keywords:
+
+```bash
+uv run cli/semantic_search_cli.py search "space exploration adventure" --limit 5
+
+```
+
+#### 4. Fixed-Word Window Chunking
+
+Splits arbitrary text strings into word chunks with optional sliding overlap:
+
+```bash
+uv run cli/semantic_search_cli.py chunk "The quick brown fox jumps over the lazy dog near the riverbank." --chunk-size 4 --overlap 2
+
+```
+
+*Sample Output:*
+
+```text
+Chunking 68 characters
+1. The quick brown fox
+2. brown fox jumps over
+3. jumps over the lazy
+4. the lazy dog near
+5. dog near the riverbank.
+
+```
+
+#### 5. Semantic Sentence Chunking
+
+Splits text on sentence boundaries using regex lookbehinds with sentence-level overlap:
+
+```bash
+uv run cli/semantic_search_cli.py semantic_chunk "First sentence here. Second sentence here. Third sentence here. Fourth sentence here." --max-chunk-size 2 --overlap 1
+
+```
+
+*Sample Output:*
+
+```text
+Semantically chunking 85 characters
+1. First sentence here. Second sentence here.
+2. Second sentence here. Third sentence here.
+3. Third sentence here. Fourth sentence here.
+
+```
+
+---
+
+## 🧪 Testing & Verification
+
+Run the test suite using `bootdev`:
+
+```bash
+# Run CLI test verification suite
+bootdev run
+
+# Submit solution verification
+bootdev run -s
+
+```
