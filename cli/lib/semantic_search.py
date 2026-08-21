@@ -2,6 +2,7 @@ import json
 import os
 import numpy as np
 from sentence_transformers import SentenceTransformer
+import re
 
 
 class SemanticSearch:
@@ -270,42 +271,48 @@ def chunk(text: str, chunk_size: int = 200, overlap: int = 0) -> None:
         print(f"{i}. {chunk_str}")
 
 
-def semantic_chunk(text: str, chunk_size: int = 200, overlap: int = 0) -> None:
+def semantic_chunk(
+    text: str, max_chunk_size: int = 4, overlap: int = 0
+) -> list[str]:
     """
-    Splits text into words on whitespace and groups them into chunks of size `chunk_size`.
-    Prints total character count and each chunk with 1-based indexing.
+    Splits input text into individual sentences using regex lookbehinds and groups them into
+    chunks of up to `max_chunk_size` sentences with `overlap` sentence continuity.
+    Returns a list of chunk strings and prints formatted CLI output.
     """
-    # Guard against invalid overlap configuration
-    if overlap >= chunk_size:
-        raise ValueError("Overlap must be strictly less than chunk_size.")
-    
-    # Split text on whitespace to get all individual words
-    words = text.split()
+    # Guard against invalid overlap configurations where stride would be <= 0
+    if overlap >= max_chunk_size:
+        raise ValueError("Overlap must be strictly less than max_chunk_size.")
 
-    # Guard clause for empty input
-    if not words:
-        print(f"Chunking {len(text)} characters")
+    # Split text into sentences based on punctuation boundary followed by whitespace
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+
+    # Output header matching required test output format
+    print(f"Semantically chunking {len(text)} characters")
+
+    # Guard clause for empty/whitespace-only input strings
+    if not text or not sentences or sentences == [""]:
+        return []
 
     chunks = []
     i = 0
-    stride = chunk_size - overlap
+    stride = max_chunk_size - overlap
 
     # 2. Slide window across the word list using a while loop
-    while i <len(words):
+    while i <len(sentences):
         # Extract chunk slice from current index
-        chunk_words = words[i : i + chunk_size]
-        chunks.append(" ".join(chunk_words))
+        chunk_sentences = sentences[i : i + max_chunk_size]
+        chunks.append(" ".join(chunk_sentences))
 
         # Stop if this chunk already reached or passed the end of words list
-        if i + chunk_size >= len(words):
+        if i + max_chunk_size >= len(sentences):
             break
 
         # Advance pointer by stride (chunk_size - overlap)
         i += stride
 
-    # Print total character length of the original input string
-    print(f"Chunking {len(text)} characters")
+    # Print numbered chunks starting at 1
+    for idx, chunk_str in enumerate(chunks, start=1):
+        print(f"{idx}. {chunk_str}")
 
-    # Print numbered chunks starting at index 1
-    for i, chunk_str in enumerate(chunks, start=1):
-        print(f"{i}. {chunk_str}")
+    # Return list of chunk strings as required by the assignment spec
+    return chunks

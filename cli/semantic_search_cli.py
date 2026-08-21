@@ -62,7 +62,7 @@ def main() -> None:
         help="Number of words per chunk (default: 200)",
     )
 
-    # Optional flag to set words per chunk (defaults to 0)
+    # Optional flag to set overlap words per chunk (defaults to 0)
     chunk_parser.add_argument(
         "--overlap",
         type=int,
@@ -70,26 +70,28 @@ def main() -> None:
         help="Number of overlap words per chunk (default: 0)",
     )
 
-    # Command 7: 'max_chunk' - Splits text into semantic sentence chunks
-    chunk_parser = subparsers.add_parser("max_chunk", help="Chunk documents")
+    # Command 7: 'semantic_chunk' - Splits text into semantic sentence chunks
+    semantic_chunk_parser = subparsers.add_parser(
+        "semantic_chunk", help="Semantically chunk documents by sentence"
+    )
 
-    # Required positional argument: text string to max_chunk
-    max_chunk_parser.add_argument("text", type=str, help="Chunk string")
+    # Required positional argument: text string to semantically chunk
+    semantic_chunk_parser.add_argument("text", type=str, help="Chunk string")
 
-    # Optional flag to set semantic sentence per chunk (defaults to 4)
-    max_chunk_parser.add_argument(
+    # Optional flag to set sentence count per chunk (defaults to 4)
+    semantic_chunk_parser.add_argument(
         "--max-chunk-size",
         type=int,
         default=4,
         help="Number of sentences per chunk (default: 4)",
     )
 
-    # Optional flag to set words per chunk (defaults to 0)
-    max_chunk_parser.add_argument(
+    # Optional flag to set sentence overlap per chunk (defaults to 0)
+    semantic_chunk_parser.add_argument(
         "--overlap",
         type=int,
         default=0,
-        help="Number of overlap words per chunk (default: 0)",
+        help="Number of sentence overlaps per chunk (default: 0)",
     )
 
     # Read user input from terminal arguments
@@ -110,15 +112,12 @@ def main() -> None:
             sems.embed_query_text(args.query)
 
         case "search":
-            # Pass terminal query and optional limit into the search CLI driver wrapper
             sems.search_cli(args.query, args.limit)
 
         case "chunk":
-            # Pass text and chunk_size parameter to sems.chunk
             sems.chunk(args.text, args.chunk_size, args.overlap)
 
         case "semantic_chunk":
-            # Pass text and chunk_size parameter to sems.chunk
             sems.semantic_chunk(args.text, args.max_chunk_size, args.overlap)
 
         case _:
