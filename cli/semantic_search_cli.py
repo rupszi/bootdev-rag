@@ -62,6 +62,36 @@ def main() -> None:
         help="Number of words per chunk (default: 200)",
     )
 
+    # Optional flag to set words per chunk (defaults to 0)
+    chunk_parser.add_argument(
+        "--overlap",
+        type=int,
+        default=0,
+        help="Number of overlap words per chunk (default: 0)",
+    )
+
+    # Command 7: 'max_chunk' - Splits text into semantic sentence chunks
+    chunk_parser = subparsers.add_parser("max_chunk", help="Chunk documents")
+
+    # Required positional argument: text string to max_chunk
+    max_chunk_parser.add_argument("text", type=str, help="Chunk string")
+
+    # Optional flag to set semantic sentence per chunk (defaults to 4)
+    max_chunk_parser.add_argument(
+        "--max-chunk-size",
+        type=int,
+        default=4,
+        help="Number of sentences per chunk (default: 4)",
+    )
+
+    # Optional flag to set words per chunk (defaults to 0)
+    max_chunk_parser.add_argument(
+        "--overlap",
+        type=int,
+        default=0,
+        help="Number of overlap words per chunk (default: 0)",
+    )
+
     # Read user input from terminal arguments
     args = parser.parse_args()
 
@@ -85,7 +115,11 @@ def main() -> None:
 
         case "chunk":
             # Pass text and chunk_size parameter to sems.chunk
-            sems.chunk(args.text, args.chunk_size)
+            sems.chunk(args.text, args.chunk_size, args.overlap)
+
+        case "semantic_chunk":
+            # Pass text and chunk_size parameter to sems.chunk
+            sems.semantic_chunk(args.text, args.max_chunk_size, args.overlap)
 
         case _:
             parser.print_help()

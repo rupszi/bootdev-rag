@@ -229,20 +229,79 @@ def search_cli(query: str, limit: int = 5) -> None:
         print(f"  {res['description'][:100]}...\n")
 
 
-def chunk(text: str, chunk_size: int = 200) -> None:
+def chunk(text: str, chunk_size: int = 200, overlap: int = 0) -> None:
     """
     Splits text into words on whitespace and groups them into chunks of size `chunk_size`.
     Prints total character count and each chunk with 1-based indexing.
     """
+    # Guard against invalid overlap configuration
+    if overlap >= chunk_size:
+        raise ValueError("Overlap must be strictly less than chunk_size.")
+    
     # Split text on whitespace to get all individual words
     words = text.split()
 
+    # Guard clause for empty input
+    if not words:
+        print(f"Chunking {len(text)} characters")
+
     chunks = []
-    # Step through words list in steps of chunk_size
-    for i in range(0, len(words), chunk_size):
-        # Slice word list and re-join with single spaces
+    i = 0
+    stride = chunk_size - overlap
+
+    # 2. Slide window across the word list using a while loop
+    while i <len(words):
+        # Extract chunk slice from current index
         chunk_words = words[i : i + chunk_size]
         chunks.append(" ".join(chunk_words))
+
+        # Stop if this chunk already reached or passed the end of words list
+        if i + chunk_size >= len(words):
+            break
+
+        # Advance pointer by stride (chunk_size - overlap)
+        i += stride
+
+    # Print total character length of the original input string
+    print(f"Chunking {len(text)} characters")
+
+    # Print numbered chunks starting at index 1
+    for i, chunk_str in enumerate(chunks, start=1):
+        print(f"{i}. {chunk_str}")
+
+
+def semantic_chunk(text: str, chunk_size: int = 200, overlap: int = 0) -> None:
+    """
+    Splits text into words on whitespace and groups them into chunks of size `chunk_size`.
+    Prints total character count and each chunk with 1-based indexing.
+    """
+    # Guard against invalid overlap configuration
+    if overlap >= chunk_size:
+        raise ValueError("Overlap must be strictly less than chunk_size.")
+    
+    # Split text on whitespace to get all individual words
+    words = text.split()
+
+    # Guard clause for empty input
+    if not words:
+        print(f"Chunking {len(text)} characters")
+
+    chunks = []
+    i = 0
+    stride = chunk_size - overlap
+
+    # 2. Slide window across the word list using a while loop
+    while i <len(words):
+        # Extract chunk slice from current index
+        chunk_words = words[i : i + chunk_size]
+        chunks.append(" ".join(chunk_words))
+
+        # Stop if this chunk already reached or passed the end of words list
+        if i + chunk_size >= len(words):
+            break
+
+        # Advance pointer by stride (chunk_size - overlap)
+        i += stride
 
     # Print total character length of the original input string
     print(f"Chunking {len(text)} characters")
