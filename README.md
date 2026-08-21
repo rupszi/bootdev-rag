@@ -304,18 +304,3 @@ Semantically chunking 85 characters
 3. Third sentence here. Fourth sentence here.
 
 ```
-
----
-
-## 🧪 Testing & Verification
-
-Run the test suite using `bootdev`:
-
-```bash
-# Run CLI test verification suite
-bootdev run
-
-# Submit solution verification
-bootdev run -s
-
-```
