@@ -120,6 +120,99 @@ class SemanticSearch:
         return sorted_results[:limit]
 
 
+class ChunkedSemanticSearch(SemanticSearch):
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
+        super().__init__(model_name)
+        self.chunk_embeddings = None
+        self.chunk_metadata = None
+
+
+    def build_chunk_embeddings(self, documents: list[dict]) -> np.ndarray:
+        """Turns every movie description in our list into semantic chunks,
+
+        generates vector embeddings for all chunks, and saves both embeddings
+        and metadata to disk.
+        """
+        # 1. Store the raw list of movie dictionaries on the instance
+        self.documents = documents
+
+        # 2. Build a fast key-value lookup map from movie ID to full dictionary
+        self.document_map = {doc["id"]: doc for doc in documents}
+
+        # Flat list to collect chunk text strings across ALL documents for batch encoding
+        all_chunks = []
+
+        # List of metadata dicts tracking positional provenance for every chunk
+        self.chunk_metadata = []
+
+        # 3. Process every document and generate text chunks
+        for movie_idx, doc in enumerate(self.documents):
+            # Skip documents with missing or whitespace-only descriptions
+            if not doc["description"].strip():
+                continue
+
+            # Split description into overlapping sentence chunks (max 4 sentences, 1 sentence overlap)
+            chunks = semantic_chunk(doc["description"], 4, 1)
+
+            # Record each individual chunk and its positional metadata
+            for chunk_idx, chunk_text in enumerate(chunks):
+                all_chunks.append(chunk_text)
+                self.chunk_metadata.append(
+                    {
+                        "movie_idx": movie_idx,  # Index of parent movie in self.documents
+                        "chunk_idx": chunk_idx,  # Position of chunk within this movie
+                        "total_chunks": len(
+                            chunks
+                        ),  # Total chunk count for this movie
+                    }
+                )
+
+        # 4. Batch encode all collected chunk text strings into a 2D numpy matrix of vectors
+        self.chunk_embeddings = self.model.encode(
+            all_chunks, show_progress_bar=True
+        )
+
+        # 5. Serialize vector matrix to binary NumPy format on disk (.npy)
+        np.save("cache/chunk_embeddings.npy", self.chunk_embeddings)
+
+        # 6. Write chunk metadata and overall total count to disk as formatted JSON
+        with open("cache/chunk_metadata.json", "w") as f:
+            json.dump(
+                {"chunks": self.chunk_metadata, "total_chunks": len(all_chunks)},
+                f,
+                indent=2,
+            )
+
+        # 7. Return generated vector matrix
+        return self.chunk_embeddings
+
+
+
+
+# def build_embeddings(self, documents: list[dict]) -> np.ndarray:
+#         """
+#         Turns every movie in our list into a vector and saves the result to disk.
+#         """
+#         # Save raw movie dictionaries internally
+#         self.documents = documents
+
+#         # Create a fast lookup map: movie_id -> full movie dictionary
+#         self.document_map = {doc["id"]: doc for doc in documents}
+
+#         # Combine title and description into one sentence per movie.
+#         # Example: "The Dark Knight: When the menace known as the Joker..."
+#         # This gives the AI model full context to convert into numbers.
+#         movie_strings = [f"{doc['title']}: {doc['description']}" for doc in documents]
+
+#         # Convert all movie strings into vectors at once (batching is much faster)
+#         self.embeddings = self.model.encode(movie_strings, show_progress_bar=True)
+
+#         # Save the vector grid to disk so we don't have to re-compute it every run
+#         np.save("cache/movie_embeddings.npy", self.embeddings)
+
+#         return self.embeddings
+
+
 
 
 def verify_model() -> None:
