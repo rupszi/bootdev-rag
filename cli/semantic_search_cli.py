@@ -122,8 +122,8 @@ def main() -> None:
         case "embed_chunks":
             # Load documents dataset before passing to embed_chunks
             with open("data/movies.json", "r") as f:
-                documents = json.load(f)
-            sems.embed_chunks(documents)
+                movies_data = json.load(f)
+            sems.embed_chunks(movies_data["movies"])
 
         case _:
             parser.print_help()

@@ -4,7 +4,6 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 import re
 
-
 class SemanticSearch:
     """
     Search engine that understands the meaning of words, not just exact keyword matches.
@@ -186,6 +185,46 @@ class ChunkedSemanticSearch(SemanticSearch):
         # 7. Return generated vector matrix
         return self.chunk_embeddings
 
+
+    def search_chunks(self, query: str, limit: int = 10):
+        """
+        Calculates similarity scores between a search query and all loaded documents,
+        returning the top 'limit' closest semantic matches.
+        """
+        # Guard clause: ensure vector cache and document texts exist before searching
+        if self.chunk_embeddings is None or self.documents is None or self.chunk_metadata is None:
+            raise ValueError("Chunk embeddings and metadata must be loaded before searching.")
+
+        # Convert user's raw string search query into a 384-dimensional vector
+        embedding = self.generate_embedding(query)
+
+        # Initialize accumulator list to store scored result dictionaries
+        result_list = []
+
+        # Iterate through every document and its matching row vector in self.embeddings
+        for i in range(len(self.documents)):
+            doc_dict = self.documents[i]
+            doc_vect = self.embeddings[i]
+
+            # Calculate mathematical similarity between query vector and movie vector
+            score = cosine_similarity(embedding, doc_vect)
+
+            # Construct result item containing similarity score and movie details
+            result_item = {
+                "score": float(score),
+                "title": doc_dict["title"],
+                "description": doc_dict["description"],
+            }
+
+            result_list.append(result_item)
+
+        # Sort all results by 'score' in descending order (highest score first)
+        sorted_results = sorted(
+            result_list, key=lambda x: x["score"], reverse=True
+        )
+
+        # Return only the top N results based on the requested limit
+        return sorted_results[:limit]
 
 
     def load_or_create_chunk_embeddings(self, documents: list[dict]) -> np.ndarray:
