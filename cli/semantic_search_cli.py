@@ -1,5 +1,5 @@
 import argparse
-# Import our semantic search module using the 'sems' namespace alias
+import json
 import lib.semantic_search as sems
 
 
@@ -8,17 +8,23 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Semantic Search CLI")
 
     # Add subcommands so the user can type 'verify', 'embed_text', etc.
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    subparsers = parser.add_subparsers(
+        dest="command", help="Available commands"
+    )
 
     # Command 1: 'verify' - Checks model architecture
-    subparsers.add_parser("verify", help="Verify model loading and sequence length")
+    subparsers.add_parser(
+        "verify", help="Verify model loading and sequence length"
+    )
 
     # Command 2: 'embed_text' - Converts a single user string into a vector
     embed_text_parser = subparsers.add_parser(
         "embed_text", help="Embed the provided text."
     )
     embed_text_parser.add_argument(
-        "text", type=str, help="The text string to generate a vector embedding for"
+        "text",
+        type=str,
+        help="The text string to generate a vector embedding for",
     )
 
     # Command 3: 'verify_embeddings' - Builds or loads vectors for all movies
@@ -31,16 +37,16 @@ def main() -> None:
         "embed_query", help="Generates vectors for the provided text."
     )
     embed_query_parser.add_argument(
-        "query", type=str, help="The text string to generate a vector embedding for"
+        "query",
+        type=str,
+        help="The text string to generate a vector embedding for",
     )
 
     # Command 5: 'search' - Compares the user's query vector against document vectors
-    search_parser = subparsers.add_parser("search", help="Search movies semantically")
-
-    # Required positional argument for the search phrase
+    search_parser = subparsers.add_parser(
+        "search", help="Search movies semantically"
+    )
     search_parser.add_argument("query", type=str, help="Search query string")
-
-    # Optional flag to restrict maximum returned results (defaults to 5)
     search_parser.add_argument(
         "--limit",
         type=int,
@@ -50,19 +56,13 @@ def main() -> None:
 
     # Command 6: 'chunk' - Splits text into fixed word-size chunks
     chunk_parser = subparsers.add_parser("chunk", help="Chunk documents")
-
-    # Required positional argument: text string to chunk
     chunk_parser.add_argument("text", type=str, help="Chunk string")
-
-    # Optional flag to set words per chunk (defaults to 200)
     chunk_parser.add_argument(
         "--chunk-size",
         type=int,
         default=200,
         help="Number of words per chunk (default: 200)",
     )
-
-    # Optional flag to set overlap words per chunk (defaults to 0)
     chunk_parser.add_argument(
         "--overlap",
         type=int,
@@ -74,24 +74,23 @@ def main() -> None:
     semantic_chunk_parser = subparsers.add_parser(
         "semantic_chunk", help="Semantically chunk documents by sentence"
     )
-
-    # Required positional argument: text string to semantically chunk
     semantic_chunk_parser.add_argument("text", type=str, help="Chunk string")
-
-    # Optional flag to set sentence count per chunk (defaults to 4)
     semantic_chunk_parser.add_argument(
         "--max-chunk-size",
         type=int,
         default=4,
         help="Number of sentences per chunk (default: 4)",
     )
-
-    # Optional flag to set sentence overlap per chunk (defaults to 0)
     semantic_chunk_parser.add_argument(
         "--overlap",
         type=int,
         default=0,
         help="Number of sentence overlaps per chunk (default: 0)",
+    )
+
+    # Command 8: 'embed_chunks' - Generates chunked embeddings for all movie descriptions
+    subparsers.add_parser(
+        "embed_chunks", help="Generate and cache chunked embeddings"
     )
 
     # Read user input from terminal arguments
@@ -121,8 +120,11 @@ def main() -> None:
             sems.semantic_chunk(args.text, args.max_chunk_size, args.overlap)
 
         case "embed_chunks":
-            sems.embed_chunks(args.documents)
-            
+            # Load documents dataset before passing to embed_chunks
+            with open("data/movies.json", "r") as f:
+                documents = json.load(f)
+            sems.embed_chunks(documents)
+
         case _:
             parser.print_help()
 
