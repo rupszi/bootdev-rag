@@ -122,7 +122,7 @@ class SemanticSearch:
 
 class ChunkedSemanticSearch(SemanticSearch):
     def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
-        super().__init__(model_name)
+        super().__init__()
         self.chunk_embeddings = None
         self.chunk_metadata = None
 
@@ -188,31 +188,34 @@ class ChunkedSemanticSearch(SemanticSearch):
 
 
 
+    def load_or_create_chunk_embeddings(self, documents: list[dict]) -> np.ndarray:
+        """Loads pre-computed chunk embeddings and metadata from disk cache if present;
 
-# def build_embeddings(self, documents: list[dict]) -> np.ndarray:
-#         """
-#         Turns every movie in our list into a vector and saves the result to disk.
-#         """
-#         # Save raw movie dictionaries internally
-#         self.documents = documents
+        otherwise builds them from scratch.
+        """
+        # 1. Store state and fast lookup map
+        self.documents = documents
+        self.document_map = {doc["id"]: doc for doc in documents}
 
-#         # Create a fast lookup map: movie_id -> full movie dictionary
-#         self.document_map = {doc["id"]: doc for doc in documents}
+        # 2. Check if BOTH cache files exist on disk
+        if os.path.exists("cache/chunk_embeddings.npy") and os.path.exists(
+            "cache/chunk_metadata.json"
+        ):
+            print("Loading chunk embeddings and metadata from cache...")
 
-#         # Combine title and description into one sentence per movie.
-#         # Example: "The Dark Knight: When the menace known as the Joker..."
-#         # This gives the AI model full context to convert into numbers.
-#         movie_strings = [f"{doc['title']}: {doc['description']}" for doc in documents]
+            # Load the 2D vector matrix directly from .npy file
+            self.chunk_embeddings = np.load("cache/chunk_embeddings.npy")
 
-#         # Convert all movie strings into vectors at once (batching is much faster)
-#         self.embeddings = self.model.encode(movie_strings, show_progress_bar=True)
+            # Load metadata JSON and extract the 'chunks' list
+            with open("cache/chunk_metadata.json", "r") as f:
+                data = json.load(f)
+                self.chunk_metadata = data["chunks"]
 
-#         # Save the vector grid to disk so we don't have to re-compute it every run
-#         np.save("cache/movie_embeddings.npy", self.embeddings)
+            return self.chunk_embeddings
 
-#         return self.embeddings
-
-
+        # 3. Fall back to generating embeddings if cache is missing
+        print("Cache missing. Generating chunk embeddings...")
+        return self.build_chunk_embeddings(documents)
 
 
 def verify_model() -> None:
@@ -409,3 +412,12 @@ def semantic_chunk(
 
     # Return list of chunk strings as required by the assignment spec
     return chunks
+
+def embed_chunks(documents: list[dict]):
+    """Instantiates the ChunkedSemanticSearch engine, builds or loads cached
+
+    chunk embeddings, and reports the resulting vector count.
+    """
+    chunk_srch = ChunkedSemanticSearch()
+    embeddings = chunk_srch.load_or_create_chunk_embeddings(documents)
+    print(f"Generated {len(embeddings)} chunked embeddings")

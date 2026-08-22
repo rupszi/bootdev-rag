@@ -120,6 +120,9 @@ def main() -> None:
         case "semantic_chunk":
             sems.semantic_chunk(args.text, args.max_chunk_size, args.overlap)
 
+        case "embed_chunks":
+            sems.embed_chunks(args.documents)
+            
         case _:
             parser.print_help()
 
