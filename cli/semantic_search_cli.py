@@ -93,6 +93,12 @@ def main() -> None:
         "embed_chunks", help="Generate and cache chunked embeddings"
     )
 
+    # Command 9: 'search_chunked' 
+    search_chunked_parser = subparsers.add_parser("search_chunked", help="Semantically search chunk documents")
+    search_chunked_parser.add_argument("query", type=str, help="Query string")
+    search_chunked_parser.add_argument("--limit", type=int, default = 5, help="Limit results, default = 5" )
+
+
     # Read user input from terminal arguments
     args = parser.parse_args()
 
@@ -124,6 +130,9 @@ def main() -> None:
             with open("data/movies.json", "r") as f:
                 movies_data = json.load(f)
             sems.embed_chunks(movies_data["movies"])
+
+        case "search_chunked":
+            sems.search_chunked(args.query, args.limit)
 
         case _:
             parser.print_help()

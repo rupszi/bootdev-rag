@@ -196,35 +196,53 @@ class ChunkedSemanticSearch(SemanticSearch):
             raise ValueError("Chunk embeddings and metadata must be loaded before searching.")
 
         # Convert user's raw string search query into a 384-dimensional vector
-        embedding = self.generate_embedding(query)
+        query_embedding = self.generate_embedding(query)
 
         # Initialize accumulator list to store scored result dictionaries
-        result_list = []
+        chunk_scores = []
 
         # Iterate through every document and its matching row vector in self.embeddings
-        for i in range(len(self.documents)):
-            doc_dict = self.documents[i]
-            doc_vect = self.embeddings[i]
-
+        for i, chunk_emb in enumerate(self.chunk_embeddings):
             # Calculate mathematical similarity between query vector and movie vector
-            score = cosine_similarity(embedding, doc_vect)
-
+            score = cosine_similarity(query_embedding, chunk_emb)
+            meta = self.chunk_metadata[i]
             # Construct result item containing similarity score and movie details
-            result_item = {
-                "score": float(score),
-                "title": doc_dict["title"],
-                "description": doc_dict["description"],
-            }
+            chunk_scores.append({
+                "chunk_idx": meta["chunk_idx"],
+                "movie_idx": meta["movie_idx"],
+                "score": score,
+            })
 
-            result_list.append(result_item)
+        best_movie_scores = {}
+
+        for item in chunk_scores:
+            m_idx = item["movie_idx"]
+            score = item["score"]
+
+            if m_idx not in best_movie_scores or score > best_movie_scores[m_idx]:
+                best_movie_scores[m_idx] = score
+         
 
         # Sort all results by 'score' in descending order (highest score first)
-        sorted_results = sorted(
-            result_list, key=lambda x: x["score"], reverse=True
+        sorted_movie_items = sorted(
+            best_movie_scores.items(), key=lambda x: x[1], reverse=True
         )
 
+        top_movie_items = sorted_movie_items[:limit]
+        results = []
+
+        for m_idx, score in top_movie_items:
+            doc = self.documents[m_idx]
+            formatted = {
+            "id": doc["id"],
+            "title": doc["title"],
+            "document": doc["description"][:100],  # Truncate to first 100 chars
+            "score": round(float(score), 4),
+            "metadata": {},
+        }
+            results.append(formatted)
         # Return only the top N results based on the requested limit
-        return sorted_results[:limit]
+        return results
 
 
     def load_or_create_chunk_embeddings(self, documents: list[dict]) -> np.ndarray:
@@ -460,3 +478,32 @@ def embed_chunks(documents: list[dict]):
     chunk_srch = ChunkedSemanticSearch()
     embeddings = chunk_srch.load_or_create_chunk_embeddings(documents)
     print(f"Generated {len(embeddings)} chunked embeddings")
+
+def search_chunked(query: str, limit: int = 5) -> None:
+    """
+    CLI DRIVER: Loads movie dataset, runs semantic search across chunked embeddings,
+    and prints formatted search results to the terminal.
+    """
+    # 1. Load document data
+    documents = load_movies()
+
+    # 2. Instantiate chunk search engine and load cached chunk vectors
+    chunk_srch = ChunkedSemanticSearch()
+    chunk_srch.load_or_create_chunk_embeddings(documents)
+
+    # 3. Perform the chunk search
+    results = chunk_srch.search_chunks(query, limit)
+
+    # 4. Print results matching the CLI format requirement
+    for i, res in enumerate(results, start=1):
+        print(f"\n{i}. {res['title']} (score: {res['score']:.4f})")
+        print(f"   {res['document']}...")
+
+
+def load_movies() -> list[dict]:
+    """
+    Loads and parses the raw movie dataset from disk.
+    """
+    with open("data/movies.json", "r") as f:
+        data = json.load(f)
+    return data["movies"]
