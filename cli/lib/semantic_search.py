@@ -1,8 +1,9 @@
 import json
 import os
+import re
 import numpy as np
 from sentence_transformers import SentenceTransformer
-import re
+
 
 class SemanticSearch:
     """
@@ -48,12 +49,13 @@ class SemanticSearch:
         movie_strings = [f"{doc['title']}: {doc['description']}" for doc in documents]
 
         # Convert all movie strings into vectors at once (batching is much faster)
-        self.embeddings = self.model.encode(movie_strings, show_progress_bar=True)
+        embeddings = self.model.encode(movie_strings, show_progress_bar=True)
+        self.embeddings = embeddings
 
         # Save the vector grid to disk so we don't have to re-compute it every run
         np.save("cache/movie_embeddings.npy", self.embeddings)
 
-        return self.embeddings
+        return embeddings
 
     def load_or_create_embeddings(self, documents: list[dict]) -> np.ndarray:
         """
@@ -67,11 +69,12 @@ class SemanticSearch:
         cache_path = "cache/movie_embeddings.npy"
         if os.path.exists(cache_path):
             # Load the cached grid of numbers from disk
-            self.embeddings = np.load(cache_path)
+            loaded = np.load(cache_path)
 
             # Make sure the cached vector count matches the current movie count
-            if self.embeddings is not None and len(self.embeddings) == len(documents):
-                return self.embeddings
+            if loaded is not None and len(loaded) == len(documents):
+                self.embeddings = loaded
+                return loaded
 
         # If cache is missing or out of date, compute vectors from scratch
         return self.build_embeddings(documents)
@@ -122,9 +125,8 @@ class SemanticSearch:
 class ChunkedSemanticSearch(SemanticSearch):
     def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
         super().__init__()
-        self.chunk_embeddings = None
-        self.chunk_metadata = None
-
+        self.chunk_embeddings: np.ndarray | None = None
+        self.chunk_metadata: list[dict] | None = None
 
     def build_chunk_embeddings(self, documents: list[dict]) -> np.ndarray:
         """Turns every movie description in our list into semantic chunks,
@@ -167,9 +169,10 @@ class ChunkedSemanticSearch(SemanticSearch):
                 )
 
         # 4. Batch encode all collected chunk text strings into a 2D numpy matrix of vectors
-        self.chunk_embeddings = self.model.encode(
+        encoded_embeddings = self.model.encode(
             all_chunks, show_progress_bar=True
         )
+        self.chunk_embeddings = encoded_embeddings
 
         # 5. Serialize vector matrix to binary NumPy format on disk (.npy)
         np.save("cache/chunk_embeddings.npy", self.chunk_embeddings)
@@ -183,67 +186,73 @@ class ChunkedSemanticSearch(SemanticSearch):
             )
 
         # 7. Return generated vector matrix
-        return self.chunk_embeddings
+        return encoded_embeddings
 
-
-    def search_chunks(self, query: str, limit: int = 10):
+    def search_chunks(self, query: str, limit: int = 10) -> list[dict]:
         """
-        Calculates similarity scores between a search query and all loaded documents,
-        returning the top 'limit' closest semantic matches.
+        Calculates similarity scores between a search query and all loaded document chunks,
+        aggregates top scores per movie document, and returns formatted result matches.
         """
-        # Guard clause: ensure vector cache and document texts exist before searching
-        if self.chunk_embeddings is None or self.documents is None or self.chunk_metadata is None:
-            raise ValueError("Chunk embeddings and metadata must be loaded before searching.")
+        # Guard clause: ensure vector cache, document list, and metadata exist before searching
+        if (
+            self.chunk_embeddings is None
+            or self.documents is None
+            or self.chunk_metadata is None
+        ):
+            raise ValueError(
+                "Chunk embeddings and metadata must be loaded before searching."
+            )
 
         # Convert user's raw string search query into a 384-dimensional vector
         query_embedding = self.generate_embedding(query)
 
-        # Initialize accumulator list to store scored result dictionaries
+        # Initialize accumulator list to store scored chunk dictionaries
         chunk_scores = []
 
-        # Iterate through every document and its matching row vector in self.embeddings
+        # Iterate through every chunk embedding and calculate similarity to query vector
         for i, chunk_emb in enumerate(self.chunk_embeddings):
-            # Calculate mathematical similarity between query vector and movie vector
             score = cosine_similarity(query_embedding, chunk_emb)
             meta = self.chunk_metadata[i]
-            # Construct result item containing similarity score and movie details
             chunk_scores.append({
                 "chunk_idx": meta["chunk_idx"],
                 "movie_idx": meta["movie_idx"],
                 "score": score,
             })
 
+        # Dictionary to track the single highest chunk similarity score per movie index
         best_movie_scores = {}
 
         for item in chunk_scores:
             m_idx = item["movie_idx"]
             score = item["score"]
 
+            # Update movie score if movie not recorded yet or if current chunk score is higher
             if m_idx not in best_movie_scores or score > best_movie_scores[m_idx]:
                 best_movie_scores[m_idx] = score
-         
 
-        # Sort all results by 'score' in descending order (highest score first)
+        # Sort movie scores by floating similarity score in descending order
         sorted_movie_items = sorted(
             best_movie_scores.items(), key=lambda x: x[1], reverse=True
         )
 
+        # Truncate aggregated movie results to requested limit count
         top_movie_items = sorted_movie_items[:limit]
         results = []
 
+        # Format each movie item to standard result shape
         for m_idx, score in top_movie_items:
             doc = self.documents[m_idx]
             formatted = {
-            "id": doc["id"],
-            "title": doc["title"],
-            "document": doc["description"][:100],  # Truncate to first 100 chars
-            "score": round(float(score), 4),
-            "metadata": {},
-        }
+                "id": doc["id"],
+                "title": doc["title"],
+                "document": doc["description"][:100],  # Truncate description to first 100 chars
+                "score": round(float(score), 4),
+                "metadata": {},
+            }
             results.append(formatted)
-        # Return only the top N results based on the requested limit
-        return results
 
+        # Return final array of result dictionaries
+        return results
 
     def load_or_create_chunk_embeddings(self, documents: list[dict]) -> np.ndarray:
         """Loads pre-computed chunk embeddings and metadata from disk cache if present;
@@ -261,14 +270,16 @@ class ChunkedSemanticSearch(SemanticSearch):
             print("Loading chunk embeddings and metadata from cache...")
 
             # Load the 2D vector matrix directly from .npy file
-            self.chunk_embeddings = np.load("cache/chunk_embeddings.npy")
+            loaded_embeddings = np.load("cache/chunk_embeddings.npy")
 
             # Load metadata JSON and extract the 'chunks' list
             with open("cache/chunk_metadata.json", "r") as f:
                 data = json.load(f)
                 self.chunk_metadata = data["chunks"]
 
-            return self.chunk_embeddings
+            # Store on instance and return concrete loaded local ndarray
+            self.chunk_embeddings = loaded_embeddings
+            return loaded_embeddings
 
         # 3. Fall back to generating embeddings if cache is missing
         print("Cache missing. Generating chunk embeddings...")
@@ -391,7 +402,7 @@ def chunk(text: str, chunk_size: int = 200, overlap: int = 0) -> None:
     # Guard against invalid overlap configuration
     if overlap >= chunk_size:
         raise ValueError("Overlap must be strictly less than chunk_size.")
-    
+
     # Split text on whitespace to get all individual words
     words = text.split()
 
@@ -403,8 +414,8 @@ def chunk(text: str, chunk_size: int = 200, overlap: int = 0) -> None:
     i = 0
     stride = chunk_size - overlap
 
-    # 2. Slide window across the word list using a while loop
-    while i <len(words):
+    # Slide window across the word list using a while loop
+    while i < len(words):
         # Extract chunk slice from current index
         chunk_words = words[i : i + chunk_size]
         chunks.append(" ".join(chunk_words))
@@ -420,8 +431,8 @@ def chunk(text: str, chunk_size: int = 200, overlap: int = 0) -> None:
     print(f"Chunking {len(text)} characters")
 
     # Print numbered chunks starting at index 1
-    for i, chunk_str in enumerate(chunks, start=1):
-        print(f"{i}. {chunk_str}")
+    for idx, chunk_str in enumerate(chunks, start=1):
+        print(f"{idx}. {chunk_str}")
 
 
 def semantic_chunk(
@@ -436,31 +447,40 @@ def semantic_chunk(
     if overlap >= max_chunk_size:
         raise ValueError("Overlap must be strictly less than max_chunk_size.")
 
-    # Split text into sentences based on punctuation boundary followed by whitespace
-    sentences = re.split(r"(?<=[.!?])\s+", text)
-
-    # Output header matching required test output format
+    # Print original text character count header matching test specifications
     print(f"Semantically chunking {len(text)} characters")
 
+    # Clean leading/trailing outer whitespace from text
+    cleaned_text = text.strip()
+
     # Guard clause for empty/whitespace-only input strings
-    if not text or not sentences or sentences == [""]:
+    if not cleaned_text:
+        return []
+
+    # Split clean text into sentences based on punctuation boundary followed by whitespace
+    raw_sentences = re.split(r"(?<=[.!?])\s+", cleaned_text)
+    
+    # Strip whitespace from each individual sentence
+    sentences = [s.strip() for s in raw_sentences if s.strip()]
+
+    if not sentences:
         return []
 
     chunks = []
     i = 0
     stride = max_chunk_size - overlap
 
-    # 2. Slide window across the word list using a while loop
-    while i <len(sentences):
+    # Slide window across the sentence list using a while loop
+    while i < len(sentences):
         # Extract chunk slice from current index
         chunk_sentences = sentences[i : i + max_chunk_size]
         chunks.append(" ".join(chunk_sentences))
 
-        # Stop if this chunk already reached or passed the end of words list
+        # Stop if this chunk already reached or passed the end of sentences list
         if i + max_chunk_size >= len(sentences):
             break
 
-        # Advance pointer by stride (chunk_size - overlap)
+        # Advance pointer by stride (max_chunk_size - overlap)
         i += stride
 
     # Print numbered chunks starting at 1
@@ -470,7 +490,8 @@ def semantic_chunk(
     # Return list of chunk strings as required by the assignment spec
     return chunks
 
-def embed_chunks(documents: list[dict]):
+
+def embed_chunks(documents: list[dict]) -> None:
     """Instantiates the ChunkedSemanticSearch engine, builds or loads cached
 
     chunk embeddings, and reports the resulting vector count.
@@ -478,6 +499,16 @@ def embed_chunks(documents: list[dict]):
     chunk_srch = ChunkedSemanticSearch()
     embeddings = chunk_srch.load_or_create_chunk_embeddings(documents)
     print(f"Generated {len(embeddings)} chunked embeddings")
+
+
+def load_movies() -> list[dict]:
+    """
+    Loads and parses the raw movie dataset from disk.
+    """
+    with open("data/movies.json", "r") as f:
+        data = json.load(f)
+    return data["movies"]
+
 
 def search_chunked(query: str, limit: int = 5) -> None:
     """
@@ -498,12 +529,3 @@ def search_chunked(query: str, limit: int = 5) -> None:
     for i, res in enumerate(results, start=1):
         print(f"\n{i}. {res['title']} (score: {res['score']:.4f})")
         print(f"   {res['document']}...")
-
-
-def load_movies() -> list[dict]:
-    """
-    Loads and parses the raw movie dataset from disk.
-    """
-    with open("data/movies.json", "r") as f:
-        data = json.load(f)
-    return data["movies"]

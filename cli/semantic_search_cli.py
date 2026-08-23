@@ -93,11 +93,17 @@ def main() -> None:
         "embed_chunks", help="Generate and cache chunked embeddings"
     )
 
-    # Command 9: 'search_chunked' 
-    search_chunked_parser = subparsers.add_parser("search_chunked", help="Semantically search chunk documents")
+    # Command 9: 'search_chunked' - Performs chunk-based semantic search
+    search_chunked_parser = subparsers.add_parser(
+        "search_chunked", help="Semantically search chunk documents"
+    )
     search_chunked_parser.add_argument("query", type=str, help="Query string")
-    search_chunked_parser.add_argument("--limit", type=int, default = 5, help="Limit results, default = 5" )
-
+    search_chunked_parser.add_argument(
+        "--limit",
+        type=int,
+        default=5,
+        help="Limit results, default = 5",
+    )
 
     # Read user input from terminal arguments
     args = parser.parse_args()
