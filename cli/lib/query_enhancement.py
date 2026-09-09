@@ -156,15 +156,16 @@ def rerank_individual(query: str, docs: list[dict]) -> list[dict]:
     reranked_docs = []
 
     for i, doc in enumerate(docs):
-        # Sleep for 3 seconds between LLM calls to prevent rate limiting
         if i > 0:
             time.sleep(3)
 
-        description = doc.get("description", "") or doc.get("document", "")
+        doc_text = doc.get("document") or doc.get("description", "")
+        title = doc.get("title", "")
+
         prompt = f"""Rate how well this movie matches the search query.
 
 Query: "{query}"
-Movie: {doc.get("title", "")} - {description}
+Movie: {title} - {doc_text}
 
 Consider:
 - Direct relevance to query
@@ -181,19 +182,19 @@ Score:"""
         ]
 
         score = 0.0
-        # Robust score retrieval with a single retry mechanism
-        for attempt in range(2):
+        for _ in range(2):
             try:
                 response = client.chat.completions.create(
                     model="openrouter/free",
                     messages=messages,
                 )
                 raw_text = response.choices[0].message.content or ""
-                # Parse out floating point or integer number from LLM response
                 match = re.search(r"(\d+(?:\.\d+)?)", raw_text)
                 if match:
-                    score = float(match.group(1))
-                    break
+                    val = float(match.group(1))
+                    if 0.0 <= val <= 10.0:
+                        score = val
+                        break
             except Exception:
                 time.sleep(2)
 
@@ -201,5 +202,9 @@ Score:"""
         doc_copy["rerank_score"] = score
         reranked_docs.append(doc_copy)
 
-    # Sort documents by re-rank score in descending order
-    return sorted(reranked_docs, key=lambda x: x.get("rerank_score", 0.0), reverse=True)
+    # Sort descending primarily by re-rank score, tie-breaking with RRF score
+    return sorted(
+        reranked_docs,
+        key=lambda x: (x.get("rerank_score", 0.0), x.get("rrf_score", 0.0)),
+        reverse=True,
+    )
