@@ -3,7 +3,7 @@
 import argparse
 from lib.keyword_search import load_movies
 from lib.hybrid_search import HybridSearch, min_max_normalize
-from lib.query_enhancement import correct_spelling
+from lib.query_enhancement import correct_spelling, rewrite_query, expand_query
 
 
 def main() -> None:
@@ -24,9 +24,9 @@ def main() -> None:
     rrf_parser.add_argument(
         "--enhance",
         type=str,
-        choices=["spell"],
+        choices=["spell", "rewrite", "expand"],
         default=None,
-        help="Query enhancement strategy (e.g. 'spell')",
+        help="Query enhancement strategy ('spell', 'rewrite' or 'expand')",
     )
 
     # Normalize Parser
@@ -52,15 +52,22 @@ def main() -> None:
                 print(f"  {res['description'][:100]}...")
 
         case "rrf-search":
-            query = args.query
+            original_query = args.query
+            search_query = original_query
 
-            # Perform query enhancement if requested
             if args.enhance == "spell":
-                query = correct_spelling(query)
+                search_query = correct_spelling(original_query)
+                print(f"Enhanced query (spell): '{original_query}' -> '{search_query}'\n")
+            elif args.enhance == "rewrite":
+                search_query = rewrite_query(original_query)
+                print(f"Enhanced query (rewrite): '{original_query}' -> '{search_query}'\n")
+            elif args.enhance == "expand":
+                search_query = expand_query(original_query)
+                print(f"Enhanced query (expand): '{original_query}' -> '{search_query}'\n")
 
             movies = load_movies()
             searcher = HybridSearch(movies)
-            results = searcher.rrf_search(query, args.k, args.limit)
+            results = searcher.rrf_search(search_query, args.k, args.limit)
             for i, res in enumerate(results, start=1):
                 bm25_rank_str = str(res['bm25_rank']) if res['bm25_rank'] is not None else "N/A"
                 semantic_rank_str = str(res['semantic_rank']) if res['semantic_rank'] is not None else "N/A"
