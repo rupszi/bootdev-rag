@@ -4,6 +4,8 @@ import os
 from .keyword_search import InvertedIndex
 from .semantic_search import ChunkedSemanticSearch
 
+def rrf_score(rank: int, k: int = 60) -> float:
+    return 1 / (k + rank)
 
 def hybrid_score (bm25_score:float, semantic_score: float, alpha: float = 0.5) -> float:
     """
@@ -65,8 +67,8 @@ class HybridSearch:
         fetch_limit = limit * 500
 
         # 1. Fetch raw search results
-        bm25_results = self._bm25_search(query, 500)
-        semantic_results = self.semantic_search.search_chunks(query, 500)
+        bm25_results = self._bm25_search(query, fetch_limit)
+        semantic_results = self.semantic_search.search_chunks(query, fetch_limit)
 
         # Map document objects by ID
         doc_map = {doc["id"]: doc for doc in self.documents}
@@ -118,4 +120,58 @@ class HybridSearch:
         """
         Executes Reciprocal Rank Fusion (RRF) combining rank positions from both searchers.
         """
-        raise NotImplementedError("RRF hybrid search is not implemented yet.")
+        fetch_limit = limit * 500
+        
+        # 1. Fetch raw search results
+        bm25_results = self._bm25_search(query, fetch_limit)
+        semantic_results = self.semantic_search.search_chunks(query, fetch_limit)
+
+        # Build a fast lookup dictionary mapping doc_id -> full movie dict
+        doc_map = {doc["id"]: doc for doc in self.documents}
+
+        # 2. Map document IDs  to their 1-based rank positions in BM25 results
+        bm25_ranks = {}
+        for rank, (doc_id, _) in enumerate(bm25_results, start=1):
+            bm25_ranks[doc_id] = rank
+        
+        # 3. Map document IDs to their 1-based rank positions in Semantic results
+        semantic_ranks = {}
+        for rank, res in enumerate(semantic_results, start=1):
+            semantic_ranks[res["id"]] = rank
+
+        # 4. Get the set of all unique IDs retrieved by either searcher
+        all_doc_ids= set(bm25_ranks.keys()).union(set(semantic_ranks.keys()))
+        combined_results = []
+
+        # 5. Calculate RRF score for each document across both ranking lists
+        for doc_id in all_doc_ids:
+            doc = doc_map.get(doc_id)
+            if not doc:
+                continue
+
+            # Retrieve 1-based ranks (None if the document was not in that result set)
+            b_rank = bm25_ranks.get(doc_id)
+            s_rank = semantic_ranks.get(doc_id)
+
+            # Calculate individual RRF scores using 1 / (k + rank)
+            b_score = rrf_score(b_rank, k) if b_rank is not None else 0.0
+            s_score = rrf_score(s_rank, k) if s_rank is not None else 0.0
+
+            # Combined score is the sum of both reciprocal rank scores
+            total_rrf_score = b_score + s_score
+
+            combined_results.append({
+                "id": doc["id"],
+                "title": doc["title"],
+                "description": doc["description"],
+                "rrf_score": total_rrf_score,
+                "bm25_rank": b_rank,
+                "semantic_rank": s_rank,
+            })
+
+        # 6. Sort documents by total RRF score in descending order
+        sorted_results = sorted(
+            combined_results, key=lambda x: x["rrf_score"], reverse=True
+        )
+
+        return sorted_results[:limit]
