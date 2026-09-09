@@ -9,19 +9,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Hybrid Search CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # Weighted Search Command (subcommand name updated to 'weighted-search')
+    # Weighted Search Command
     weighted_parser = subparsers.add_parser("weighted-search", help="Weighted hybrid search")
     weighted_parser.add_argument("query", type=str, help="Search query")
     weighted_parser.add_argument("--alpha", type=float, default=0.5, help="Weight balance (0.0 to 1.0)")
     weighted_parser.add_argument("--limit", type=int, default=5, help="Number of results to return")
 
     # RRF Search Command
-    rrf_parser = subparsers.add_parser("rrf", help="Reciprocal Rank Fusion hybrid search")
+    rrf_parser = subparsers.add_parser("rrf-search", help="Reciprocal Rank Fusion hybrid search")
     rrf_parser.add_argument("query", type=str, help="Search query")
     rrf_parser.add_argument("-k", type=int, default=60, help="RRF smoothing constant k")
     rrf_parser.add_argument("--limit", type=int, default=5, help="Number of results to return")
 
-    # Add the 'normalize' parser
+    # Normalize Parser
     normalize_parser = subparsers.add_parser("normalize", help="Min-max normalize a list of scores")
     normalize_parser.add_argument(
         "scores",
@@ -43,7 +43,7 @@ def main() -> None:
                 print(f"  BM25: {res['bm25_score']:.3f}, Semantic: {res['semantic_score']:.3f}")
                 print(f"  {res['description'][:100]}...")
 
-        case "rrf":
+        case "rrf-search":
             movies = load_movies()
             searcher = HybridSearch(movies)
             results = searcher.rrf_search(args.query, args.k, args.limit)

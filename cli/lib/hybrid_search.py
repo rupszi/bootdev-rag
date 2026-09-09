@@ -4,14 +4,6 @@ import os
 from .keyword_search import InvertedIndex
 from .semantic_search import ChunkedSemanticSearch
 
-def rrf_score(rank: int, k: int = 60) -> float:
-    return 1 / (k + rank)
-
-def hybrid_score (bm25_score:float, semantic_score: float, alpha: float = 0.5) -> float:
-    """
-    Calculates weighted combination score balancing keyword and semantic scores.
-    """
-    return alpha * bm25_score + (1 - alpha) * semantic_score
 
 def min_max_normalize(scores: list[float]) -> list[float]:
     """
@@ -29,6 +21,21 @@ def min_max_normalize(scores: list[float]) -> list[float]:
         return [1.0 for _ in scores]
 
     return [(score - min_score) / (max_score - min_score) for score in scores]
+
+
+def hybrid_score(bm25_score: float, semantic_score: float, alpha: float = 0.5) -> float:
+    """
+    Calculates weighted combination score balancing keyword and semantic scores.
+    """
+    return alpha * bm25_score + (1 - alpha) * semantic_score
+
+
+def rrf_score(rank: int, k: int = 60) -> float:
+    """
+    Calculates the Reciprocal Rank Fusion (RRF) score for a given 1-based rank position.
+    Formula: 1 / (k + rank)
+    """
+    return 1 / (k + rank)
 
 
 class HybridSearch:
@@ -63,14 +70,13 @@ class HybridSearch:
         """
         Executes weighted score combination blending normalized BM25 and vector scores.
         """
-
         fetch_limit = limit * 500
 
         # 1. Fetch raw search results
         bm25_results = self._bm25_search(query, fetch_limit)
         semantic_results = self.semantic_search.search_chunks(query, fetch_limit)
 
-        # Map document objects by ID
+        # Map document objects by ID for quick lookup
         doc_map = {doc["id"]: doc for doc in self.documents}
 
         # 2. Extract and normalize BM25 scores
@@ -79,13 +85,13 @@ class HybridSearch:
         norm_bm25_scores = min_max_normalize(raw_bm25_scores)
         bm25_score_map = dict(zip(bm25_doc_ids, norm_bm25_scores))
 
-        # 3. Extract and normalize semantic scores
+        # 3. Extract and normalize Semantic scores
         sem_doc_ids = [res["id"] for res in semantic_results]
         raw_sem_scores = [res["score"] for res in semantic_results]
         norm_sem_scores = min_max_normalize(raw_sem_scores)
         sem_score_map = dict(zip(sem_doc_ids, norm_sem_scores))
 
-        # 4. Combine all document IDs into unified candidate map
+        # 4. Combine all document IDs into a unified candidate map
         all_doc_ids = set(bm25_doc_ids).union(set(sem_doc_ids))
         combined_results = []
 
@@ -115,32 +121,31 @@ class HybridSearch:
 
         return sorted_results[:limit]
 
-
-    def rrf_search(self, query: str, k: int, limit: int = 10) -> list[dict]:
+    def rrf_search(self, query: str, k: int = 60, limit: int = 10) -> list[dict]:
         """
         Executes Reciprocal Rank Fusion (RRF) combining rank positions from both searchers.
         """
         fetch_limit = limit * 500
-        
-        # 1. Fetch raw search results
+
+        # 1. Fetch raw search results from both search algorithms
         bm25_results = self._bm25_search(query, fetch_limit)
         semantic_results = self.semantic_search.search_chunks(query, fetch_limit)
 
         # Build a fast lookup dictionary mapping doc_id -> full movie dict
         doc_map = {doc["id"]: doc for doc in self.documents}
 
-        # 2. Map document IDs  to their 1-based rank positions in BM25 results
+        # 2. Map document IDs to their 1-based rank positions in BM25 results
         bm25_ranks = {}
         for rank, (doc_id, _) in enumerate(bm25_results, start=1):
             bm25_ranks[doc_id] = rank
-        
+
         # 3. Map document IDs to their 1-based rank positions in Semantic results
         semantic_ranks = {}
         for rank, res in enumerate(semantic_results, start=1):
             semantic_ranks[res["id"]] = rank
 
-        # 4. Get the set of all unique IDs retrieved by either searcher
-        all_doc_ids= set(bm25_ranks.keys()).union(set(semantic_ranks.keys()))
+        # 4. Get the set of all unique document IDs retrieved by either searcher
+        all_doc_ids = set(bm25_ranks.keys()).union(set(semantic_ranks.keys()))
         combined_results = []
 
         # 5. Calculate RRF score for each document across both ranking lists
