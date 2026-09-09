@@ -8,6 +8,7 @@ from lib.query_enhancement import (
     rewrite_query,
     expand_query,
     rerank_individual,
+    rerank_batch,
 )
 
 
@@ -36,9 +37,9 @@ def main() -> None:
     rrf_parser.add_argument(
         "--rerank-method",
         type=str,
-        choices=["individual"],
+        choices=["individual", "batch"],
         default=None,
-        help="Re-ranking method strategy ('individual')",
+        help="Re-ranking method strategy ('individual' or 'batch')",
     )
 
     # Normalize Parser
@@ -80,13 +81,16 @@ def main() -> None:
             movies = load_movies()
             searcher = HybridSearch(movies)
 
-            # Gather 5x candidate limit if re-ranking, otherwise fetch normal limit
-            fetch_limit = args.limit * 5 if args.rerank_method == "individual" else args.limit
+            fetch_limit = args.limit * 5 if args.rerank_method in ("individual", "batch") else args.limit
             results = searcher.rrf_search(search_query, args.k, fetch_limit)
 
             if args.rerank_method == "individual":
                 print(f"Re-ranking top {len(results)} results using individual method...")
                 results = rerank_individual(search_query, results)
+                results = results[: args.limit]
+            elif args.rerank_method == "batch":
+                print(f"Re-ranking top {len(results)} results using batch method...")
+                results = rerank_batch(search_query, results)
                 results = results[: args.limit]
 
             print(f"Reciprocal Rank Fusion Results for '{search_query}' (k={args.k}):\n")
@@ -98,6 +102,8 @@ def main() -> None:
                 print(f"{i}. {res['title']}")
                 if "rerank_score" in res:
                     print(f"   Re-rank Score: {res['rerank_score']:.3f}/10")
+                elif "rerank_rank" in res:
+                    print(f"   Re-rank Rank: {res['rerank_rank']}")
                 print(f"   RRF Score: {res['rrf_score']:.3f}")
                 print(f"   BM25 Rank: {bm25_rank_str}, Semantic Rank: {semantic_rank_str}")
                 print(f"   {res['description'][:100]}...\n")

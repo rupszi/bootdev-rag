@@ -1,5 +1,6 @@
 # lib/query_enhancement.py
 
+import json
 import os
 import re
 import time
@@ -202,9 +203,84 @@ Score:"""
         doc_copy["rerank_score"] = score
         reranked_docs.append(doc_copy)
 
-    # Sort descending primarily by re-rank score, tie-breaking with RRF score
     return sorted(
         reranked_docs,
         key=lambda x: (x.get("rerank_score", 0.0), x.get("rrf_score", 0.0)),
         reverse=True,
+    )
+
+
+def rerank_batch(query: str, docs: list[dict]) -> list[dict]:
+    """
+    Re-ranks a list of documents in a single LLM call by requesting an ordered JSON array of IDs.
+    """
+    load_dotenv()
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENROUTER_API_KEY environment variable not set")
+
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=api_key,
+    )
+
+    doc_list_items = []
+    for doc in docs:
+        doc_id = doc.get("id")
+        title = doc.get("title", "")
+        description = doc.get("document") or doc.get("description", "")
+        doc_list_items.append(f"\nID: {doc_id}\nTitle: {title}\nDescription: {description}\n")
+
+    doc_list_str = "".join(doc_list_items)
+
+    prompt = f"""Rank the movies listed below by relevance to the following search query.
+
+Query: "{query}"
+
+Movies:{doc_list_str}
+
+Return the movie IDs in order of relevance, best match first.
+
+Your response must be a raw JSON array of integers.
+Do not wrap the JSON in Markdown. Do not use a ```json code block.
+Do not include any explanatory text.
+
+For example:
+[75, 12, 34, 2, 1]
+
+Ranking:"""
+
+    messages: list[ChatCompletionMessageParam] = [
+        {"role": "user", "content": prompt}
+    ]
+
+    ranked_ids = []
+    for _ in range(2):
+        try:
+            response = client.chat.completions.create(
+                model="openrouter/free",
+                messages=messages,
+            )
+            content = response.choices[0].message.content or ""
+            cleaned_content = re.sub(r"```(?:json)?", "", content).strip("` \n\r")
+            match = re.search(r"\[[\d\s,]+\]", cleaned_content)
+            if match:
+                ranked_ids = json.loads(match.group(0))
+                if isinstance(ranked_ids, list) and len(ranked_ids) > 0:
+                    break
+        except Exception:
+            time.sleep(2)
+
+    rank_map = {doc_id: idx + 1 for idx, doc_id in enumerate(ranked_ids)}
+    default_rank = len(docs) + 999
+
+    reranked_docs = []
+    for doc in docs:
+        doc_copy = dict(doc)
+        doc_copy["rerank_rank"] = rank_map.get(doc.get("id"), default_rank)
+        reranked_docs.append(doc_copy)
+
+    return sorted(
+        reranked_docs,
+        key=lambda x: (x.get("rerank_rank", default_rank), -x.get("rrf_score", 0.0)),
     )
