@@ -3,7 +3,12 @@
 import argparse
 from lib.keyword_search import load_movies
 from lib.hybrid_search import HybridSearch, min_max_normalize
-from lib.query_enhancement import correct_spelling, rewrite_query, expand_query
+from lib.query_enhancement import (
+    correct_spelling,
+    rewrite_query,
+    expand_query,
+    rerank_individual,
+)
 
 
 def main() -> None:
@@ -26,7 +31,14 @@ def main() -> None:
         type=str,
         choices=["spell", "rewrite", "expand"],
         default=None,
-        help="Query enhancement strategy ('spell', 'rewrite' or 'expand')",
+        help="Query enhancement strategy ('spell', 'rewrite', or 'expand')",
+    )
+    rrf_parser.add_argument(
+        "--rerank-method",
+        type=str,
+        choices=["individual"],
+        default=None,
+        help="Re-ranking method strategy ('individual')",
     )
 
     # Normalize Parser
@@ -67,15 +79,28 @@ def main() -> None:
 
             movies = load_movies()
             searcher = HybridSearch(movies)
-            results = searcher.rrf_search(search_query, args.k, args.limit)
+
+            # Gather 5x candidate limit if re-ranking, otherwise fetch normal limit
+            fetch_limit = args.limit * 5 if args.rerank_method == "individual" else args.limit
+            results = searcher.rrf_search(search_query, args.k, fetch_limit)
+
+            if args.rerank_method == "individual":
+                print(f"Re-ranking top {len(results)} results using individual method...")
+                results = rerank_individual(search_query, results)
+                results = results[: args.limit]
+
+            print(f"Reciprocal Rank Fusion Results for '{search_query}' (k={args.k}):\n")
+
             for i, res in enumerate(results, start=1):
                 bm25_rank_str = str(res['bm25_rank']) if res['bm25_rank'] is not None else "N/A"
                 semantic_rank_str = str(res['semantic_rank']) if res['semantic_rank'] is not None else "N/A"
 
                 print(f"{i}. {res['title']}")
-                print(f"  RRF Score: {res['rrf_score']:.3f}")
-                print(f"  BM25 Rank: {bm25_rank_str}, Semantic Rank: {semantic_rank_str}")
-                print(f"  {res['description'][:100]}...")
+                if "rerank_score" in res:
+                    print(f"   Re-rank Score: {res['rerank_score']:.3f}/10")
+                print(f"   RRF Score: {res['rrf_score']:.3f}")
+                print(f"   BM25 Rank: {bm25_rank_str}, Semantic Rank: {semantic_rank_str}")
+                print(f"   {res['description'][:100]}...\n")
 
         case "normalize":
             normalized_scores = min_max_normalize(args.scores)
