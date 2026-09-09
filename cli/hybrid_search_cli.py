@@ -3,6 +3,7 @@
 import argparse
 from lib.keyword_search import load_movies
 from lib.hybrid_search import HybridSearch, min_max_normalize
+from lib.query_enhancement import correct_spelling
 
 
 def main() -> None:
@@ -20,6 +21,13 @@ def main() -> None:
     rrf_parser.add_argument("query", type=str, help="Search query")
     rrf_parser.add_argument("-k", type=int, default=60, help="RRF smoothing constant k")
     rrf_parser.add_argument("--limit", type=int, default=5, help="Number of results to return")
+    rrf_parser.add_argument(
+        "--enhance",
+        type=str,
+        choices=["spell"],
+        default=None,
+        help="Query enhancement strategy (e.g. 'spell')",
+    )
 
     # Normalize Parser
     normalize_parser = subparsers.add_parser("normalize", help="Min-max normalize a list of scores")
@@ -44,11 +52,16 @@ def main() -> None:
                 print(f"  {res['description'][:100]}...")
 
         case "rrf-search":
+            query = args.query
+
+            # Perform query enhancement if requested
+            if args.enhance == "spell":
+                query = correct_spelling(query)
+
             movies = load_movies()
             searcher = HybridSearch(movies)
-            results = searcher.rrf_search(args.query, args.k, args.limit)
+            results = searcher.rrf_search(query, args.k, args.limit)
             for i, res in enumerate(results, start=1):
-                # Safely handle potential None ranks for output display
                 bm25_rank_str = str(res['bm25_rank']) if res['bm25_rank'] is not None else "N/A"
                 semantic_rank_str = str(res['semantic_rank']) if res['semantic_rank'] is not None else "N/A"
 

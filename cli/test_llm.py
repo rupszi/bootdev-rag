@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam
 
 # Load environment variables from .env file
 load_dotenv()
@@ -16,8 +17,8 @@ client = OpenAI(
     api_key=api_key,
 )
 
-# Define prompt messages
-messages = [
+# Explicitly type the list of messages
+messages: list[ChatCompletionMessageParam] = [
     {
         "role": "user",
         "content": "Why is Boot.dev such a great place to learn about RAG? Use one paragraph maximum.",
