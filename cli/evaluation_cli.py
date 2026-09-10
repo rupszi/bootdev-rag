@@ -38,11 +38,19 @@ def main() -> None:
         relevant_count = sum(1 for title in retrieved_titles if title in relevant_docs)
         precision = relevant_count / limit if limit > 0 else 0.0
 
+        relevant_retrieved = relevant_count
+        total_relevant = len(relevant_docs)
+        recall = relevant_retrieved / total_relevant
+
+        f1 = 2 * (precision * recall) / (precision + recall)
+
         retrieved_str = ", ".join(retrieved_titles)
         relevant_str = ", ".join(relevant_docs)
 
         print(f"- Query: {query}")
         print(f"  - Precision@{limit}: {precision:.4f}")
+        print(f"  - Recall@{limit}: {recall:.4f}")
+        print(f"  - F1 Score: {f1}")
         print(f"  - Retrieved: {retrieved_str}")
         print(f"  - Relevant: {relevant_str}\n")
 
