@@ -127,6 +127,9 @@ class HybridSearch:
         """
         fetch_limit = limit * 500
 
+        print(f"\n--- [DEBUG] Pipeline Step 1: Original Query ---")
+        print(f"Query: '{query}'")
+
         # 1. Fetch raw search results from both search algorithms
         bm25_results = self._bm25_search(query, fetch_limit)
         semantic_results = self.semantic_search.search_chunks(query, fetch_limit)
@@ -178,5 +181,14 @@ class HybridSearch:
         sorted_results = sorted(
             combined_results, key=lambda x: x["rrf_score"], reverse=True
         )
+
+        print(f"\n--- [DEBUG] Pipeline Step 3: Top RRF Candidates (before re-ranking) ---")
+        for idx, res in enumerate(sorted_results[:25], start=1):
+            print(
+                f"  {idx}. {res['title']} "
+                f"(RRF Score: {res['rrf_score']:.4f}, "
+                f"BM25 Rank: {res['bm25_rank']}, "
+                f"Sem Rank: {res['semantic_rank']})"
+            )
 
         return sorted_results[:limit]
