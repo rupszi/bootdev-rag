@@ -9,6 +9,7 @@ from lib.query_enhancement import (
     expand_query,
     rerank_individual,
     rerank_batch,
+    rerank_cross_encoder,
 )
 
 
@@ -37,9 +38,9 @@ def main() -> None:
     rrf_parser.add_argument(
         "--rerank-method",
         type=str,
-        choices=["individual", "batch"],
+        choices=["individual", "batch", "cross_encoder"],
         default=None,
-        help="Re-ranking method strategy ('individual' or 'batch')",
+        help="Re-ranking method strategy ('individual', 'batch', or 'cross_encoder')",
     )
 
     # Normalize Parser
@@ -81,7 +82,7 @@ def main() -> None:
             movies = load_movies()
             searcher = HybridSearch(movies)
 
-            fetch_limit = args.limit * 5 if args.rerank_method in ("individual", "batch") else args.limit
+            fetch_limit = args.limit * 5 if args.rerank_method in ("individual", "batch", "cross_encoder") else args.limit
             results = searcher.rrf_search(search_query, args.k, fetch_limit)
 
             if args.rerank_method == "individual":
@@ -91,6 +92,10 @@ def main() -> None:
             elif args.rerank_method == "batch":
                 print(f"Re-ranking top {len(results)} results using batch method...")
                 results = rerank_batch(search_query, results)
+                results = results[: args.limit]
+            elif args.rerank_method == "cross_encoder":
+                print(f"Re-ranking top {len(results)} results using cross_encoder method...")
+                results = rerank_cross_encoder(search_query, results)
                 results = results[: args.limit]
 
             print(f"Reciprocal Rank Fusion Results for '{search_query}' (k={args.k}):\n")
@@ -104,6 +109,8 @@ def main() -> None:
                     print(f"   Re-rank Score: {res['rerank_score']:.3f}/10")
                 elif "rerank_rank" in res:
                     print(f"   Re-rank Rank: {res['rerank_rank']}")
+                elif "cross_encoder_score" in res:
+                    print(f"   Cross Encoder Score: {res['cross_encoder_score']:.3f}")
                 print(f"   RRF Score: {res['rrf_score']:.3f}")
                 print(f"   BM25 Rank: {bm25_rank_str}, Semantic Rank: {semantic_rank_str}")
                 print(f"   {res['description'][:100]}...\n")

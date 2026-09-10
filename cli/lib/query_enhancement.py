@@ -7,6 +7,7 @@ import time
 from dotenv import load_dotenv
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
+from sentence_transformers import CrossEncoder
 
 
 def correct_spelling(query: str) -> str:
@@ -283,4 +284,30 @@ Ranking:"""
     return sorted(
         reranked_docs,
         key=lambda x: (x.get("rerank_rank", default_rank), -x.get("rrf_score", 0.0)),
+    )
+
+
+def rerank_cross_encoder(query: str, docs: list[dict]) -> list[dict]:
+    """
+    Re-ranks documents using a local cross-encoder model.
+    """
+    pairs = []
+    for doc in docs:
+        doc_text = doc.get("document") or doc.get("description", "")
+        title = doc.get("title", "")
+        pairs.append([query, f"{title} - {doc_text}"])
+
+    cross_encoder = CrossEncoder("cross-encoder/ms-marco-TinyBERT-L2-v2")
+    scores = cross_encoder.predict(pairs)
+
+    reranked_docs = []
+    for doc, score in zip(docs, scores):
+        doc_copy = dict(doc)
+        doc_copy["cross_encoder_score"] = float(score)
+        reranked_docs.append(doc_copy)
+
+    return sorted(
+        reranked_docs,
+        key=lambda x: (x.get("cross_encoder_score", -999.0), x.get("rrf_score", 0.0)),
+        reverse=True,
     )
