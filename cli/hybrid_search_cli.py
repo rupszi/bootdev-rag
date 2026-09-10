@@ -69,50 +69,59 @@ def main() -> None:
             original_query = args.query
             search_query = original_query
 
-            # Debug Log Step 1: Original Query
-            print(f"--- [DEBUG] Pipeline Step 1: Original Query ---\nQuery: '{original_query}'\n")
+            # Pipeline Step 1: Log original input query
+            print(f"\n--- [DEBUG] Pipeline Step 1: Original Query ---")
+            print(f"Query: '{original_query}'")
 
+            # Pipeline Step 2: Query Enhancement stage
+            print(f"\n--- [DEBUG] Pipeline Step 2: Query Enhancement ---")
             if args.enhance == "spell":
                 search_query = correct_spelling(original_query)
-                print(f"--- [DEBUG] Pipeline Step 2: Enhanced Query (spell) ---\n'{original_query}' -> '{search_query}'\n")
+                print(f"Enhanced query (spell): '{original_query}' -> '{search_query}'")
             elif args.enhance == "rewrite":
                 search_query = rewrite_query(original_query)
-                print(f"--- [DEBUG] Pipeline Step 2: Enhanced Query (rewrite) ---\n'{original_query}' -> '{search_query}'\n")
+                print(f"Enhanced query (rewrite): '{original_query}' -> '{search_query}'")
             elif args.enhance == "expand":
                 search_query = expand_query(original_query)
-                print(f"--- [DEBUG] Pipeline Step 2: Enhanced Query (expand) ---\n'{original_query}' -> '{search_query}'\n")
+                print(f"Enhanced query (expand): '{original_query}' -> '{search_query}'")
+            else:
+                print(f"Enhancement Strategy: None (Using raw query: '{search_query}')")
 
             movies = load_movies()
             searcher = HybridSearch(movies)
 
+            # Fetch candidate window (5x limit when re-ranking is requested)
             fetch_limit = args.limit * 5 if args.rerank_method in ("individual", "batch", "cross_encoder") else args.limit
             results = searcher.rrf_search(search_query, args.k, fetch_limit)
 
-            # Debug Log Step 3: Candidate Pool after RRF Search
-            print(f"--- [DEBUG] Pipeline Step 3: Top RRF Candidates ({len(results)} items retrieved) ---")
+            # Pipeline Step 3: Candidate RRF Pool
+            print(f"\n--- [DEBUG] Pipeline Step 3: Top RRF Candidates ({len(results)} candidates fetched) ---")
             for idx, res in enumerate(results[:25], start=1):
                 bm25_rank_str = str(res['bm25_rank']) if res['bm25_rank'] is not None else "N/A"
                 semantic_rank_str = str(res['semantic_rank']) if res['semantic_rank'] is not None else "N/A"
-                print(f"  {idx}. {res['title']} (RRF: {res['rrf_score']:.4f}, BM25 Rank: {bm25_rank_str}, Sem Rank: {semantic_rank_str})")
-            print()
+                print(
+                    f"  {idx}. {res['title']} "
+                    f"(RRF Score: {res['rrf_score']:.4f}, "
+                    f"BM25 Rank: {bm25_rank_str}, "
+                    f"Sem Rank: {semantic_rank_str})"
+                )
 
+            # Apply Re-Ranking if specified
             if args.rerank_method == "individual":
-                print(f"Re-ranking top {len(results)} results using individual method...")
+                print(f"\nRe-ranking top {len(results)} results using individual method...")
                 results = rerank_individual(search_query, results)
                 results = results[: args.limit]
             elif args.rerank_method == "batch":
-                print(f"Re-ranking top {len(results)} results using batch method...")
+                print(f"\nRe-ranking top {len(results)} results using batch method...")
                 results = rerank_batch(search_query, results)
                 results = results[: args.limit]
             elif args.rerank_method == "cross_encoder":
-                print(f"Re-ranking top {len(results)} results using cross_encoder method...")
+                print(f"\nRe-ranking top {len(results)} results using cross_encoder method...")
                 results = rerank_cross_encoder(search_query, results)
                 results = results[: args.limit]
 
-            # Debug Log Step 4 / Final Output
-            if args.rerank_method:
-                print(f"--- [DEBUG] Pipeline Step 4: Final Top {len(results)} Results After Re-Ranking ---")
-
+            # Pipeline Step 4: Final Output
+            print(f"\n--- [DEBUG] Pipeline Step 4: Final Top {len(results)} Results ---")
             print(f"Reciprocal Rank Fusion Results for '{search_query}' (k={args.k}):\n")
 
             for i, res in enumerate(results, start=1):
