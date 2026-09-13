@@ -1,306 +1,193 @@
-# Advanced Search Engine: Inverted Index & Semantic Vector Retrieval in Python
+To accurately update the `README.md` file to reflect the overall state of the search engine platform up through **Chapter 10 (Augmented Generation)**, you need to expand the documentation from a dual-engine lexical/vector system to a full **Hybrid RAG (Retrieval-Augmented Generation) Pipeline**.
 
-A high-performance, hybrid search engine CLI platform built from scratch in Python. The system provides two complementary retrieval architectures:
+Here is the updated, comprehensive `README.md` file:
 
-1. **Fast Keyword Inverted Index Engine:** A fast lexical search engine utilizing text normalization, stem reduction, postings lists, term-frequency matrix tracking, and TF-IDF relevance metrics.
-2. **Dense Vector Semantic Engine:** A neural semantic search engine powered by `sentence-transformers` (`all-MiniLM-L6-v2`) and `numpy` matrix calculations, featuring fixed-size word sliding-window chunking and sentence-boundary regex semantic chunking with overlap context preservation.
+```markdown
+# Advanced Search Engine & RAG Platform: Hybrid Retrieval, Re-Ranking & Generation
 
----
-
-## 💡 System Overview: Why Dual-Engine Architecture?
-
-Modern information retrieval systems face a fundamental trade-off between **lexical exactness** and **conceptual understanding**:
-
-```
-                              ┌───────────────────────────────────────────────┐
-                              │            RAW QUERY / DOCUMENT               │
-                              └──────────────────────┬────────────────────────┘
-                                                     │
-                   ┌─────────────────────────────────┴─────────────────────────────────┐
-                   ▼                                                                   ▼
-    ┌─────────────────────────────┐                                     ┌─────────────────────────────┐
-    │   LEXICAL INVERTED INDEX    │                                     │    DENSE VECTOR SEMANTIC    │
-    │  (Keyword-exact matching)   │                                     │   (Neural Vibe/Context)     │
-    └──────────────┬──────────────┘                                     └──────────────┬──────────────┘
-                   │                                                                   │
-    • Tokenize, Stopwords, Stemming                                     • SentenceTransformer Model
-    • Postings Maps: Term -> Set[DocID]                                 • 384-Dimensional Embeddings
-    • Fast O(1) Set Intersections                                       • Cosine Similarity Dot Product
-    • Exact Model Numbers / Names                                       • Conceptual / Synonymous Queries
-
-```
-
-* **The Lexical Approach (Inverted Index):** Outstanding at finding exact strings, product IDs, rare proper nouns, and specific codes. However, if a user queries "feline," a purely lexical system fails if the document only contains "cat."
-* **The Dense Semantic Approach (Vector Search):** Transforms text into continuous 384-dimensional vector spaces. It understands that "spacecraft" and "spaceship" occupy nearly identical vector coordinates.
-* **Text Chunking Pipeline:** Addresses the transformer model sequence length bottleneck ($N_{\text{max}} = 256$ tokens) by partitioning long text documents into overlapping fixed-word or sentence-level segments without losing context at boundaries.
+A high-performance, production-grade search and Retrieval-Augmented Generation (RAG) platform built from scratch in Python. The platform implements an end-to-end information retrieval and generation architecture—progressing from low-level inverted index data structures and dense vector embeddings to hybrid rank fusion, query expansion, cross-encoder re-ranking, LLM evaluation, and context-augmented answer generation.
 
 ---
 
-## 🏗 System Architecture & End-to-End Pipeline
+## 💡 System Overview: Why Hybrid Search & Augmented Generation?
+
+Modern retrieval systems face fundamental trade-offs between **lexical precision** and **conceptual understanding**. Single-strategy retrieval often falls short:
+* **Lexical exactness** misses semantically equivalent terms ("feline" vs "cat").
+* **Vector similarity** can hallucinate relevance or miss exact identifiers, serial numbers, or rare proper nouns.
+* **Pure LLM Generation** suffers from parameter age-off and hallucinations.
+
+This platform bridges these gaps by combining sparse lexical indexing, dense vector space representations, reciprocal rank fusion (RRF), cross-encoder re-ranking, and dynamic LLM contextual synthesis.
+
 
 ```
-                                    ┌──────────────────────────────────────┐
-                                    │      RAW DATASETS & DOCUMENTS        │
-                                    │ data/movies.json + data/stopwords.txt│
-                                    └──────────────────┬───────────────────┘
-                                                       │
-                   ┌───────────────────────────────────┴───────────────────────────────────┐
-                   │                                                                       │
-                   ▼                                                                       ▼
-    ┌─────────────────────────────┐                                         ┌─────────────────────────────┐
-    │  TEXT NORMALIZATION ENGINE  │                                         │      CHUNKING PIPELINE      │
-    ├─────────────────────────────┤                                         ├─────────────────────────────┤
-    │ 1. Lowercase Folding        │                                         │ 1. Fixed Word Sliding Window│
-    │ 2. Punctuation Strip        │                                         │ 2. Regex Sentence Splitter  │
-    │ 3. Stopword Filtering       │                                         │ 3. Overlap Stride Control   │
-    │ 4. Porter Stemmer Roots     │                                         └──────────────┬──────────────┘
-    └──────────────┬──────────────┘                                                        │
-                   │                                                                       │
-                   ▼                                                                       ▼
-    ┌─────────────────────────────┐                                         ┌─────────────────────────────┐
-    │    INVERTED INDEX STORE     │                                         │   DENSE VECTOR EMBEDDINGS   │
-    ├─────────────────────────────┤                                         ├─────────────────────────────┤
-    │ • Postings: Term -> Set     │                                         │ • all-MiniLM-L6-v2 Encoder  │
-    │ • Term Frequency Matrix     │                                         │ • Matrix: N x 384 Float32   │
-    │ • TF-IDF Metric Computation │                                         │ • Disk Cache: *.npy Vector  │
-    │ • Pickle Persistence (.pkl) │                                         └──────────────┬──────────────┘
-    └──────────────┬──────────────┘                                                        │
-                   │                                                                       │
-                   └───────────────────────────────────┬───────────────────────────────────┘
-                                                       │
-                                                       ▼
-                                    ┌──────────────────────────────────────┐
-                                    │         CLI SEARCH DRIVER            │
-                                    │ keyword_search_cli | semantic_search │
-                                    └──────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                       USER QUERY                                       │
+└───────────────────────────────────────────┬────────────────────────────────────────────┘
+│
+┌─────────────────────────┴─────────────────────────┐
+▼                                                   ▼
+┌─────────────────────────────┐                     ┌─────────────────────────────┐
+│   LEXICAL INVERTED INDEX    │                     │    DENSE VECTOR SEMANTIC    │
+│      (BM25 Matching)        │                     │   (Neural Vector Space)     │
+└──────────────┬──────────────┘                     └──────────────┬──────────────┘
+│                                                   │
+└─────────────────────────┬─────────────────────────┘
+│
+▼
+┌────────────────────┐
+│ SCORE NORMALIZATION│
+│   OR RRF FUSION    │
+└──────────┬─────────┘
+│
+▼
+┌────────────────────┐
+│   CROSS-ENCODER    │
+│     RE-RANKING     │
+└──────────┬─────────┘
+│
+▼
+┌────────────────────┐
+│    LLM EVAL &      │
+│  RAG GENERATION    │
+└────────────────────┘
 
 ```
 
 ---
 
-## 🛠 In-Depth Architectural Components
+## 🏗 End-to-End System Architecture
 
-### 1. Lexical Keyword Inverted Index (`cli/lib/keyword_search.py`)
-
-#### Text Normalization Pipeline
-
-Before text enters the postings index, it undergoes deterministic transformation:
-
-1. **Lowercasing:** Converts strings to lowercase to enforce case-insensitive matching.
-2. **Punctuation Stripping:** Removes non-alphanumeric noise using string translation tables.
-3. **Stopword Filtering:** Eliminates high-frequency, low-information tokens (e.g., `"the"`, `"and"`, `"is"`) provided in `data/stopwords.txt`.
-4. **Porter Stemming:** Reduces inflectional word variants down to unified root stems (e.g., `"running"`, `"ran"`, `"runs"` $\rightarrow$ `"run"`).
-
-#### Primary Memory Structures
-
-* **Postings List (`self.index`):** A dictionary mapping stemmed terms directly to a Python `set` of document IDs:
-```python
-{
-    "brav": {2054, 2577, 4101},
-    "space": {101, 402, 988}
-}
-
-```
-
-
-* **Document Map (`self.docmap`):** An $O(1)$ lookup mapping document IDs back to their full JSON metadata records.
-* **Term Frequencies (`self.term_frequencies`):** Nested mapping tracking term occurrences per document: `dict[int, dict[str, int]]`.
-
-#### TF-IDF Mathematical Scoring
-
-To rank relevance, the system calculates the Term Frequency-Inverse Document Frequency weight:
-
-$$\text{TF}(t, d) = \frac{f_{t,d}}{\sum_{t' \in d} f_{t',d}}$$
-
-$$\text{IDF}(t, D) = \log_e \left( \frac{\vert{}D\vert{}}{\vert{}\{d \in D : t \in d\}\vert{}} \right)$$
-
-$$\text{TF-IDF}(t, d, D) = \text{TF}(t, d) \times \text{IDF}(t, D)$$
+1. **Lexical Indexing Engine:** Custom inverted index supporting text normalization (lowercase folding, punctuation stripping, stopword removal, Porter stemming), postings lists, TF-IDF calculation, and full BM25 scoring with configurable $k_1$ and $b$ parameters.
+2. **Dense Semantic Vector Engine:** Powered by `sentence-transformers` (`all-MiniLM-L6-v2`) and `numpy` matrix calculations. Features fixed-word sliding-window chunking and sentence-boundary regex chunking with overlap context preservation.
+3. **Hybrid Search & Fusion:**
+   * **Score Normalization:** Min-Max scaling for linear weighting ($w_{\text{BM25}} \cdot S_{\text{BM25}} + w_{\text{Sem}} \cdot S_{\text{Sem}}$).
+   * **Reciprocal Rank Fusion (RRF):** Position-based rank aggregation ($RRF(d) = \sum \frac{1}{k + r(d)}$) to merge keyword and semantic candidate lists without calibration.
+4. **Query Expansion & Rewriting:** LLM-assisted query modification (generating synonyms, alternative phrasing, and spell-corrections) prior to index retrieval.
+5. **Cross-Encoder Re-Ranking:** Deep attention-based re-ranking using `cross-encoder/ms-marco-MiniLM-L-6-v2` to evaluate full joint query-document context.
+6. **LLM Relevance Evaluation:** Automated zero-shot/few-shot grading of retrieved search context on a 0–3 relevance scale using OpenRouter LLM endpoints.
+7. **Augmented Generation (RAG):** Context injection pipeline that formats search candidates into structured prompt constraints for natural language answer synthesis.
 
 ---
 
-### 2. Dense Semantic Vector Search (`cli/lib/semantic_search.py`)
+## 🛠 Architectural Components
 
-#### Vector Embedding Generation
+### 1. Lexical Keyword Engine (`lib/keyword_search.py` & `lib/bm25.py`)
+* **Text Normalization:** Case folding, punctuation removal, stopword filtering (`data/stopwords.txt`), and Porter stem reduction.
+* **Postings Index:** Dict mapping root stems to document sets for fast candidate retrieval.
+* **BM25 Scoring Equation:**
+  $$\text{Score}(D, Q) = \sum_{i=1}^{n} \text{IDF}(q_i) \cdot \frac{f(q_i, D) \cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot \left(1 - b + b \cdot \frac{\vert{}D\vert{}}{\text{avgdl}}\right)}$$
 
-Utilizes the `all-MiniLM-L6-v2` SentenceTransformer architecture to project input text into a high-dimensional vector space ($\mathbb{R}^{384}$).
+### 2. Semantic Vector Engine (`lib/semantic_search.py`)
+* Projections in 384-dimensional continuous space using `all-MiniLM-L6-v2`.
+* Pre-computed dot product matrix cache (`cache/movie_embeddings.npy`).
+* Fixed-word window and regex lookbehind sentence chunking (`r"(?<=[.!?])\s+"`) with overlap retention.
 
-* Input sentences are converted to dense floating-point vector arrays.
-* Pre-computed embeddings are serialized to disk as uncompressed NumPy matrix caches (`cache/movie_embeddings.npy`) to ensure instant cold-start execution.
+### 3. Hybrid Search & Fusion Engine (`lib/hybrid_search.py`)
+* **Min-Max Score Normalizer:** Transforms raw BM25 and cosine values to a $[0, 1]$ interval.
+* **Reciprocal Rank Fusion (RRF):** Combines rank positions using $k=60$ smoothing constant to eliminate score distribution discrepancies between lexical and vector scores.
 
-#### Vector Similarity Metric (Cosine Similarity)
+### 4. Cross-Encoder Re-Ranker (`lib/re_ranker.py`)
+* Utilizes full joint self-attention across query and document pairs using `cross-encoder/ms-marco-MiniLM-L-6-v2`.
+* Re-evaluates top $N$ RRF candidates to resolve semantic nuances missed by bi-encoders.
 
-Determines the angular proximity between two $n$-dimensional vectors $\mathbf{u}$ and $\mathbf{v}$, independent of magnitude:
-
-$$\text{Cosine Similarity}(\mathbf{u}, \mathbf{v}) = \frac{\mathbf{u} \cdot \mathbf{v}}{\Vert{}\mathbf{u}\Vert{}_2 \Vert{}\mathbf{v}\Vert{}_2} = \frac{\sum_{i=1}^{n} u_i v_i}{\sqrt{\sum_{i=1}^{n} u_i^2} \sqrt{\sum_{i=1}^{n} v_i^2}}$$
-
-When a query vector is computed, the engine calculates cosine similarity against all document row vectors in the cached embedding matrix, returning the top $N$ closest semantic matches ranked by descending score.
-
----
-
-### 3. Document Chunking Engine
-
-Long-form documents exceed vector context windows and obscure granular details. The library provides two distinct chunking strategies to break down text while preserving context through sliding window overlaps.
-
-```
-SLIDING WINDOW CHUNKING WITH OVERLAP (chunk_size=4, overlap=2, stride=2):
-
-Words:   [ W1   W2   W3   W4 ]  W5   W6   W7   W8
-         └────── Chunk 1 ─────┘
-                     [ W3   W4   W5   W6 ]
-                     └────── Chunk 2 ─────┘
-                                 [ W5   W6   W7   W8 ]
-                                 └────── Chunk 3 ─────┘
-                                 ▲───────▲ Overlap Region
-
-```
-
-#### Strategy A: Fixed-Word Window Chunking (`chunk`)
-
-Splits text into words on whitespace and slides a window defined by `chunk_size` and `overlap`.
-
-* **Stride Calculation:** $\text{stride} = \text{chunk\_size} - \text{overlap}$
-* **Pointer Loop:** Advances pointer $i$ by $\text{stride}$ on each step.
-* **Termination Rule:** Halts when $i + \text{chunk\_size} \ge N_{\text{words}}$ to prevent duplicate tail slices.
-
-#### Strategy B: Semantic Sentence Boundary Chunking (`semantic_chunk`)
-
-Preserves natural grammatical boundary structures instead of cutting words arbitrarily mid-thought.
-
-* **Regex Sentence Splitter:** `r"(?<=[.!?])\s+"`
-Uses a *positive lookbehind* `(?<=[.!?])` to match whitespace `\s+` immediately following a period, exclamation point, or question mark. This splits text at sentence boundaries without stripping terminal punctuation from sentence strings.
-* **Sentence Windowing:** Groups up to `max_chunk_size` sentences into a unified chunk string with `overlap` sentence retention between successive chunks.
+### 5. LLM Evaluation & RAG Pipeline (`lib/llm_eval.py` & `cli/augmented_generation_cli.py`)
+* **Evaluation (`evaluate_results`):** Sends document sets and query pairs to LLMs via OpenRouter to obtain 0–3 relevance scores.
+* **RAG Generator:** Combines top candidate contexts into standard instructions to synthesize direct, natural-language responses.
 
 ---
 
 ## 🛠 Environment Setup & Installation
 
-Ensure `uv` is installed on your machine. Sync dependencies from the project root:
+Ensure `uv` is installed on your machine. Sync project dependencies:
 
 ```bash
 uv sync
 
 ```
 
+Set your OpenRouter or OpenAI API key for query expansion, evaluation, and RAG features:
+
+```bash
+export OPENROUTER_API_KEY="your-api-key"
+
+```
+
 ---
 
-## 📖 CLI Operations & Usage Guide
+## 📖 CLI Usage Guide
 
-The project exposes two CLI interfaces: `keyword_search_cli.py` for lexical inverted index operations and `semantic_search_cli.py` for vector semantic operations and chunking.
+The platform exposes CLI interfaces covering each stage of the retrieval pipeline:
 
-### Section A: Keyword Inverted Index Engine
-
-#### 1. Build the Inverted Index Cache
-
-Parses raw datasets (`data/movies.json`), processes text normalization, and serializes index state to `cache/*.pkl`:
+### 1. Inverted Index & Lexical Search (`cli/keyword_search_cli.py`)
 
 ```bash
+# Build index cache
 uv run cli/keyword_search_cli.py build
 
-```
+# BM25 Search
+uv run cli/keyword_search_cli.py bm25search "action adventure in space"
 
-#### 2. Search Keyword Index
-
-Runs an instant lexical query over the pre-built postings index:
-
-```bash
-uv run cli/keyword_search_cli.py search "brave warrior"
-
-```
-
-#### 3. Compute Term Frequency (TF)
-
-Displays how many times a normalized stem term appears within a specific document ID:
-
-```bash
-uv run cli/keyword_search_cli.py tf 2054 "brave"
-
-```
-
-#### 4. Compute Inverse Document Frequency (IDF)
-
-Calculates the global rarity weight of a term across the entire corpus:
-
-```bash
-uv run cli/keyword_search_cli.py idf "galaxy"
-
-```
-
-#### 5. Calculate Full TF-IDF Metric
-
-Computes the exact mathematical TF-IDF score for a document-term pair:
-
-```bash
+# Term metrics
 uv run cli/keyword_search_cli.py tfidf 2054 "brave"
 
 ```
 
----
-
-### Section B: Dense Vector Semantic Engine & Chunking
-
-#### 1. Verify SentenceTransformer Model Architecture
-
-Inspects model dimensions and sequence length constraints:
+### 2. Semantic Vector Search & Chunking (`cli/semantic_search_cli.py`)
 
 ```bash
+# Verify model and pre-computed embedding shapes
 uv run cli/semantic_search_cli.py verify
-
-```
-
-#### 2. Verify Document Embeddings Matrix
-
-Loads or builds vector matrix cache for the movie dataset and displays shape metadata:
-
-```bash
 uv run cli/semantic_search_cli.py verify_embeddings
 
-```
-
-#### 3. Perform Vector Semantic Search
-
-Executes a dense vector similarity query, matching meaning rather than exact keywords:
-
-```bash
+# Semantic vector search
 uv run cli/semantic_search_cli.py search "space exploration adventure" --limit 5
 
+# Text chunking
+uv run cli/semantic_search_cli.py semantic_chunk "First sentence. Second sentence. Third sentence." --max-chunk-size 2 --overlap 1
+
 ```
 
-#### 4. Fixed-Word Window Chunking
-
-Splits arbitrary text strings into word chunks with optional sliding overlap:
+### 3. Hybrid Search & Fusion (`cli/hybrid_search_cli.py`)
 
 ```bash
-uv run cli/semantic_search_cli.py chunk "The quick brown fox jumps over the lazy dog near the riverbank." --chunk-size 4 --overlap 2
+# Normalized hybrid search with custom weighting
+uv run cli/hybrid_search_cli.py search "bear in the woods" --weight-bm25 0.5 --weight-semantic 0.5
+
+# Reciprocal Rank Fusion (RRF) search
+uv run cli/hybrid_search_cli.py rrf-search "family movie about bears" --k 60
+
+# Hybrid search with cross-encoder re-ranking
+uv run cli/hybrid_search_cli.py rrf-search "time travel paradox" --rerank
+
+# Hybrid search with LLM evaluation scoring
+uv run cli/hybrid_search_cli.py rrf-search "dinosaur park" --evaluate
 
 ```
 
-*Sample Output:*
-
-```text
-Chunking 68 characters
-1. The quick brown fox
-2. brown fox jumps over
-3. jumps over the lazy
-4. the lazy dog near
-5. dog near the riverbank.
-
-```
-
-#### 5. Semantic Sentence Chunking
-
-Splits text on sentence boundaries using regex lookbehinds with sentence-level overlap:
+### 4. Retrieval-Augmented Generation (`cli/augmented_generation_cli.py`)
 
 ```bash
-uv run cli/semantic_search_cli.py semantic_chunk "First sentence here. Second sentence here. Third sentence here. Fourth sentence here." --max-chunk-size 2 --overlap 1
+# Run end-to-end RAG pipeline
+uv run cli/augmented_generation_cli.py rag "movies about action and dinosaurs"
 
 ```
 
-*Sample Output:*
+*Sample RAG Output:*
 
 ```text
-Semantically chunking 85 characters
-1. First sentence here. Second sentence here.
-2. Second sentence here. Third sentence here.
-3. Third sentence here. Fourth sentence here.
+Search Results:
+- We're Back! A Dinosaur's Story
+- Jurassic Park
+- The Lost World
+- Carnosaur
+- A Sound of Thunder
+
+RAG Response:
+Webflyx offers several action-packed dinosaur movies. "Jurassic Park" and its sequel "The Lost World" follow cloned dinosaurs causing chaos on island preserves. For animated family fun, "We're Back! A Dinosaur's Story" features intelligent dinosaurs visiting modern-day New York, while "Carnosaur" and "A Sound of Thunder" offer sci-fi thriller takes on prehistoric encounters.
+
+```
+
+```
 
 ```

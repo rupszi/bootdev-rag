@@ -11,6 +11,7 @@ from lib.query_enhancement import (
     rerank_batch,
     rerank_cross_encoder,
 )
+from lib.llm_eval import evaluate_results
 
 
 def main() -> None:
@@ -42,6 +43,11 @@ def main() -> None:
         default=None,
         help="Re-ranking method strategy ('individual', 'batch', or 'cross_encoder')",
     )
+    rrf_parser.add_argument(
+        "--evaluate",
+        action="store_true",
+        help="Evaluate search result relevance using an LLM judge",
+    )
 
     # Normalize Parser
     normalize_parser = subparsers.add_parser("normalize", help="Min-max normalize a list of scores")
@@ -69,11 +75,11 @@ def main() -> None:
             original_query = args.query
             search_query = original_query
 
-            # Pipeline Step 1: Log original input query
+            # Step 1: Original Query
             print(f"\n--- [DEBUG] Pipeline Step 1: Original Query ---")
             print(f"Query: '{original_query}'")
 
-            # Pipeline Step 2: Query Enhancement stage
+            # Step 2: Query Enhancement
             print(f"\n--- [DEBUG] Pipeline Step 2: Query Enhancement ---")
             if args.enhance == "spell":
                 search_query = correct_spelling(original_query)
@@ -90,11 +96,10 @@ def main() -> None:
             movies = load_movies()
             searcher = HybridSearch(movies)
 
-            # Fetch candidate window (5x limit when re-ranking is requested)
             fetch_limit = args.limit * 5 if args.rerank_method in ("individual", "batch", "cross_encoder") else args.limit
             results = searcher.rrf_search(search_query, args.k, fetch_limit)
 
-            # Pipeline Step 3: Candidate RRF Pool
+            # Step 3: Candidate Pool
             print(f"\n--- [DEBUG] Pipeline Step 3: Top RRF Candidates ({len(results)} candidates fetched) ---")
             for idx, res in enumerate(results[:25], start=1):
                 bm25_rank_str = str(res['bm25_rank']) if res['bm25_rank'] is not None else "N/A"
@@ -106,7 +111,7 @@ def main() -> None:
                     f"Sem Rank: {semantic_rank_str})"
                 )
 
-            # Apply Re-Ranking if specified
+            # Re-ranking logic
             if args.rerank_method == "individual":
                 print(f"\nRe-ranking top {len(results)} results using individual method...")
                 results = rerank_individual(search_query, results)
@@ -120,7 +125,7 @@ def main() -> None:
                 results = rerank_cross_encoder(search_query, results)
                 results = results[: args.limit]
 
-            # Pipeline Step 4: Final Output
+            # Step 4: Final Search Output
             print(f"\n--- [DEBUG] Pipeline Step 4: Final Top {len(results)} Results ---")
             print(f"Reciprocal Rank Fusion Results for '{search_query}' (k={args.k}):\n")
 
@@ -138,6 +143,13 @@ def main() -> None:
                 print(f"   RRF Score: {res['rrf_score']:.3f}")
                 print(f"   BM25 Rank: {bm25_rank_str}, Semantic Rank: {semantic_rank_str}")
                 print(f"   {res['description'][:100]}...\n")
+
+            # Step 5: Optional LLM Evaluation
+            if args.evaluate:
+                scores = evaluate_results(original_query, results)
+                print("\nLLM Evaluation Results:")
+                for idx, (res, score) in enumerate(zip(results, scores), start=1):
+                    print(f"{idx}. {res['title']}: {score}/3")
 
         case "normalize":
             normalized_scores = min_max_normalize(args.scores)
