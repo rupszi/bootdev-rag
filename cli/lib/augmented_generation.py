@@ -6,7 +6,7 @@ from openai import OpenAI
 from lib.keyword_search import load_movies
 from lib.hybrid_search import HybridSearch
 
-# Load environment variables from the local .env file (e.g. OPENROUTER_API_KEY)
+# Load environment variables from .env file
 load_dotenv()
 
 
@@ -14,7 +14,6 @@ def generate_answer(query: str, search_results: list[dict]) -> str:
     """
     Constructs the standard RAG prompt from search results and calls OpenRouter/OpenAI.
     """
-    # Format each document title and description into a single context string
     formatted_docs = "\n".join(
         [
             f"Title: {doc['title']}\nDescription: {doc['description']}\n"
@@ -32,25 +31,24 @@ Documents:{formatted_docs}
 
 Answer:"""
 
-    # Retrieve API key with fallbacks
     api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
 
-    # Offline/Unauthenticated fallback for automated test environments
     if not api_key:
         titles = ", ".join([f"'{doc['title']}'" for doc in search_results])
         return f"Based on our catalog, top recommendations matching '{query}' include {titles}."
 
-    # Initialize OpenAI client pointed at OpenRouter
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key,
     )
 
     try:
+        # Pass max_tokens to prevent OpenRouter from requesting full context window budget
         response = client.chat.completions.create(
             model="google/gemini-2.5-flash",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
+            max_tokens=300,
         )
         return (response.choices[0].message.content or "").strip()
     except Exception as e:
@@ -59,7 +57,7 @@ Answer:"""
 
 def run_rag_pipeline(query: str, limit: int = 5) -> tuple[list[dict], str]:
     """
-    Executes the standard RAG pipeline using RRF search and LLM generation.
+    Executes standard RAG pipeline.
     """
     movies = load_movies()
     searcher = HybridSearch(movies)
@@ -112,6 +110,7 @@ Provide a comprehensive 3–4 sentence answer that combines information from mul
             model="google/gemini-2.5-flash",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
+            max_tokens=300,
         )
         return (response.choices[0].message.content or "").strip()
     except Exception as e:
@@ -120,7 +119,7 @@ Provide a comprehensive 3–4 sentence answer that combines information from mul
 
 def run_summarize_pipeline(query: str, limit: int = 5) -> tuple[list[dict], str]:
     """
-    Executes the multi-document summarization RAG pipeline.
+    Executes multi-document summarization RAG pipeline.
     """
     movies = load_movies()
     searcher = HybridSearch(movies)
@@ -131,7 +130,7 @@ def run_summarize_pipeline(query: str, limit: int = 5) -> tuple[list[dict], str]
 
 def answer_with_citations(query: str, search_results: list[dict]) -> str:
     """
-    Generates a citation-aware answer referencing indexed documents [1], [2], etc.
+    Generates citation-aware response.
     """
     formatted_docs = "\n".join(
         [
@@ -176,6 +175,7 @@ Answer:"""
             model="google/gemini-2.5-flash",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
+            max_tokens=300,
         )
         return (response.choices[0].message.content or "").strip()
     except Exception as e:
@@ -184,7 +184,7 @@ Answer:"""
 
 def run_citations_pipeline(query: str, limit: int = 5) -> tuple[list[dict], str]:
     """
-    Executes the citation-aware RAG pipeline.
+    Executes citation-aware pipeline.
     """
     movies = load_movies()
     searcher = HybridSearch(movies)
@@ -195,9 +195,8 @@ def run_citations_pipeline(query: str, limit: int = 5) -> tuple[list[dict], str]
 
 def answer_question(question: str, search_results: list[dict]) -> str:
     """
-    Constructs a direct, conversational question-answering prompt based on retrieved context.
+    Generates conversational QA response.
     """
-    # Step 1: Format context from the retrieved search results
     context = "\n".join(
         [
             f"Title: {doc['title']}\nDescription: {doc['description']}\n"
@@ -205,7 +204,6 @@ def answer_question(question: str, search_results: list[dict]) -> str:
         ]
     )
 
-    # Step 2: Assemble prompt instructions as specified by the lesson
     prompt = f"""Answer the user's question based on the provided movies that are available on Webflyx, a streaming service.
 
 Question: {question}
@@ -220,28 +218,26 @@ Instructions:
 
 Answer:"""
 
-    # Step 3: Fetch API key from environment
     api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
 
-    # Step 4: Provide fallback behavior if no API key is set in test environment
     if not api_key:
         return (
             "In Jurassic Park, the main characters include paleontologist Dr. Alan Grant, "
             "paleobotanist Dr. Ellie Sattler, and mathematician Dr. Ian Malcolm."
         )
 
-    # Step 5: Initialize OpenRouter client
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key,
     )
 
-    # Step 6: Query model for conversational question answer
     try:
+        # Constrain max_tokens to 300 to fit openrouter token budget limits
         response = client.chat.completions.create(
             model="google/gemini-2.5-flash",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
+            max_tokens=300,
         )
         return (response.choices[0].message.content or "").strip()
     except Exception as e:
@@ -250,22 +246,10 @@ Answer:"""
 
 def run_question_pipeline(question: str, limit: int = 5) -> tuple[list[dict], str]:
     """
-    Executes the conversational Question-Answering RAG pipeline:
-    1. Loads dataset and initializes HybridSearch.
-    2. Runs RRF search with the input question.
-    3. Calls LLM with conversational QA prompt.
-    Returns (search_results, conversational_answer).
+    Executes Question-Answering pipeline.
     """
-    # Load movie records from dataset JSON
     movies = load_movies()
-
-    # Instantiate hybrid search engine combining BM25 and vector embeddings
     searcher = HybridSearch(movies)
-
-    # Perform Reciprocal Rank Fusion search using the question string
     results = searcher.rrf_search(question, k=60, limit=limit)
-
-    # Pass candidates to LLM for conversational direct answer generation
     answer = answer_question(question, results)
-
     return results, answer
